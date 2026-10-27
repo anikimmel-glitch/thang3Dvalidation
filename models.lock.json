@@ -1,0 +1,45 @@
+{
+  "cadrille": {
+    "model_id": "maksimko123/cadrille-rl",
+    "revision": "712489b5890a0ce81b18cf441e14b2ed2eadc02a",
+    "repository": "https://github.com/col14m/cadrille",
+    "model_card": {
+      "license": "cc-by-nc-4.0"
+    }
+  },
+  "cad_recode": {
+    "model_id": "filapro/cad-recode-v1.5",
+    "revision": "765e8cc315a1a77bd8c69ccd0b403bad20ce35e8",
+    "repository": "https://github.com/filaPro/cad-recode",
+    "model_card": {
+      "license": "cc-by-nc-4.0",
+      "base_model": [
+        "Qwen/Qwen2-1.5B"
+      ]
+    }
+  },
+  "cadreasoner": {
+    "model_id": "kulibinai/cadreasoner",
+    "revision": "f39c1a303b4dba695bb1521e774f82858a5b11fa",
+    "repository": "https://github.com/zhemdi/CADReasoner",
+    "model_card": {
+      "license": "apache-2.0",
+      "tags": [
+        "vision-language",
+        "image-to-cad",
+        "cad",
+        "cadquery",
+        "qwen2-vl",
+        "3d"
+      ]
+    }
+  },
+  "Qwen_Qwen2-1.5B": {
+    "model_id": "Qwen/Qwen2-1.5B",
+    "revision": "8a16abf2848eda07cc5253dec660bf1ce007ad7a"
+  },
+  "Qwen_Qwen2-VL-2B-Instruct": {
+    "model_id": "Qwen/Qwen2-VL-2B-Instruct",
+    "revision": "895c3a49bc3fa70a340399125c650a463535e71c"
+  }
+}

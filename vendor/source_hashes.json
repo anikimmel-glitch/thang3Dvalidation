@@ -1,0 +1,10 @@
+{
+  "vendor/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "vendor/cadrille/render.py": "bb6679ff0031ebb6ed59e8a283a514bac4aac5418f71bf689bf2e3cdf52adc41",
+  "vendor/cadrille/cadrille.py": "0338162cfb9f78981e63b48638935419e3d92c639bf2f97a9a191de96fca50b8",
+  "vendor/cadrille/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "vendor/cad_recode/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "vendor/cad_recode/model.py": "29a24d37d7cf29de5bc2d4cbb7c272cb3fbd9a40a73a7e0282ebe6ffddfa2662",
+  "vendor/cadreasoner/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "vendor/cadreasoner/visualization.py": "1eee1781c8cdfbada93091b12418ca7940433adff9e3a5b04aad8ed07a817436"
+}
