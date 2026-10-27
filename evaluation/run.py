@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+import copy
 from evaluation.common import ROOT, read, save, worker, record_failure, evaluate_program
 from evaluation.aggregate import aggregate
 
@@ -138,6 +139,28 @@ def run(args, manifest):
          note="Inspect summary coverage: completed orchestration is not 100% model validity."))
 
 
+def smoke_then_full(args, manifest):
+    """Advance only after every smoke subject has a model outcome in each track."""
+    if args.limit:
+        raise ValueError("--smoke-first and --limit cannot be combined")
+    smoke=copy.copy(args)
+    smoke.limit=10
+    smoke.out=args.out/"smoke"
+    run(smoke,manifest)
+    summaries=read(smoke.out/"summary.json")
+    for name in args.models:
+        s=summaries[name]["development"]
+        if s["expected"]!=10 or not s["complete_protocol_coverage"] or s["valid"]<1:
+            raise RuntimeError(f"Smoke gate failed for {name}; see its status counts")
+    save(args.out/"smoke_gate_passed.json",dict(models=args.models,
+        policy="Ten development inputs per track; complete coverage and at least one valid output."))
+    # Same frozen subjects, seeds, and model revisions: reuse the ten predictions.
+    import shutil
+    for folder in ("prepared","predictions"):
+        shutil.copytree(smoke.out/folder,args.out/folder,dirs_exist_ok=True)
+    run(args,manifest)
+
+
 if __name__ == "__main__":
     p=argparse.ArgumentParser()
     p.add_argument("--manifest",type=Path,default=ROOT/"manifests/pilot.json")
@@ -145,6 +168,7 @@ if __name__ == "__main__":
     p.add_argument("--out",type=Path,default=Path("/opt/ml/checkpoints/irl-cad-pilot"))
     p.add_argument("--models",nargs="+",choices=MODELS,default=list(MODELS))
     p.add_argument("--limit",type=int,default=0)
+    p.add_argument("--smoke-first",action="store_true")
     p.add_argument("--model",choices=MODELS)
     p.add_argument("--shard",type=int,default=0)
     p.add_argument("--shards",type=int,default=1)
@@ -152,5 +176,7 @@ if __name__ == "__main__":
     m=read(a.manifest)
     if a.model:
         infer(a,validate_manifest(m))
+    elif a.smoke_first:
+        smoke_then_full(a,m)
     else:
         run(a,m)

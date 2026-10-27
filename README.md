@@ -35,6 +35,11 @@ subjects across complexity bins for a smoke run. It never substitutes these for
 the 450 evaluation subjects. Existing per-subject metric files are reused; use a
 new output directory when changing source, checkpoints, or protocol.
 
+`--smoke-first` runs ten development subjects first, then proceeds to all 500
+only when every track has complete smoke coverage and at least one valid
+prediction. The smoke results are retained and reused. Infrastructure failures
+or a failed gate stop the job with diagnostic records.
+
 ## Sagey
 
 Use `sagey.example.toml`, replacing the dataset and manifest URIs with your
