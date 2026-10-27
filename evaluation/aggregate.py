@@ -14,7 +14,8 @@ def summarize(rows, records):
         raise ValueError("Unexpected subjects in metrics")
     status = Counter(r["status"] for r in records.values())
     scored = [r for r in records.values() if r["status"] == "evaluated" or
-              (r["status"] == "execution_failed" and not r.get("infrastructure_failure"))]
+              (r["status"] in ("execution_failed", "invalid_geometry") and
+               not r.get("infrastructure_failure"))]
     valid = [r for r in scored if r.get("valid_single_solid")]
     output = dict(expected=len(rows), recorded=len(records), missing=len(rows)-len(records),
         statuses=dict(status), scored=len(scored), valid=len(valid),

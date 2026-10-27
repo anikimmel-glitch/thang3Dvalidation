@@ -162,13 +162,19 @@ def execute(code_path, destination):
     safe_builtins["__import__"] = restricted_import
     namespace = {"__builtins__": safe_builtins}
     exec(vetted_program(Path(code_path).read_text()), namespace)
-    shape = namespace["r"].val()
+    result = namespace["r"]
+    objects = result.vals() if isinstance(result, cq.Workplane) else [result]
+    if not objects or not all(isinstance(s, cq.Shape) for s in objects):
+        raise ValueError("Result must contain CAD shapes")
+    shape = objects[0] if len(objects) == 1 else cq.Compound.makeCompound(objects)
+    valid = bool(shape.isValid() and len(shape.Solids()) == 1 and shape.Volume() > 0)
+    save(Path(destination)/"execution.json", dict(status="executed",
+        solid_count=len(shape.Solids()), valid=valid, faces=len(shape.Faces())))
+    if not valid:
+        return
     cq.exporters.export(shape, str(Path(destination) / "prediction.step"))
     m = mesh(shape.scale(.01))
     m.export(Path(destination) / "prediction.stl")
-    save(Path(destination)/"execution.json", dict(status="executed",
-        solid_count=len(shape.Solids()), valid=bool(shape.isValid()),
-        faces=len(shape.Faces())))
 
 
 def fscore(pred, gt, threshold):

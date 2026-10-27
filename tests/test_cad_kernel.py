@@ -4,11 +4,24 @@ from pathlib import Path
 import tempfile
 import unittest
 import numpy as np
-from evaluation.geometry import cq, canonical, prepare, evaluate
+from evaluation.geometry import cq, canonical, prepare, evaluate, execute
 
 
 @unittest.skipIf(cq is None,"CadQuery unavailable locally; required in remote bootstrap")
 class Kernel(unittest.TestCase):
+    def test_multiobject_output_is_not_silently_reduced(self):
+        with tempfile.TemporaryDirectory() as folder:
+            p=Path(folder)
+            (p/"prediction.py").write_text(
+                'import cadquery as cq\n'
+                'a=cq.Workplane("XY").box(1,1,1).val()\n'
+                'b=cq.Workplane("XY").box(1,1,1).translate((3,0,0)).val()\n'
+                'r=cq.Workplane("XY").newObject([a,b])\n')
+            execute(p/"prediction.py",p)
+            r=json.loads((p/"execution.json").read_text())
+            self.assertEqual(r["solid_count"],2)
+            self.assertFalse(r["valid"])
+
     def test_roundtrip_and_translation_error(self):
         with tempfile.TemporaryDirectory() as folder:
             p=Path(folder)

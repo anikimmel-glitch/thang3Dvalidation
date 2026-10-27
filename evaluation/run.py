@@ -120,7 +120,7 @@ def run(args, manifest):
         for k in set([key,tokenizer_key]):
             item=lock[k]
             snapshot_download(item["model_id"],revision=item["revision"],
-                allow_patterns=["*.json","*.txt","*.model","*.safetensors","*.tiktoken"])
+                allow_patterns=["*.json","*.txt","*.model","*.safetensors","*.tiktoken","*.jinja"])
         shards=min(gpu_count,len(rows))
         processes=[]
         for rank in range(shards):

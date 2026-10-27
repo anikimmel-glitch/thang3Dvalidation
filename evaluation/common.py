@@ -55,6 +55,9 @@ def evaluate_program(row, code, destination, prepared):
         kind = "policy_rejected" if "program_policy_rejection" in detail else "execution_failed"
         record_failure(row, destination/"metrics.json", kind, detail)
         return
+    if not read(destination/"execution.json")["valid"]:
+        record_failure(row, destination/"metrics.json", "invalid_geometry")
+        return
     if not worker(["evaluate", prepared/"row.json", prepared,
                    destination/"prediction.step", destination/"metrics.json", .01],
                   destination/"evaluation.log", 300):
