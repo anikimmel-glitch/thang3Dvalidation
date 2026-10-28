@@ -53,6 +53,15 @@ and each CUDA device before model weights are fetched. It contributes no
 benchmark subjects or scores. The 500-subject protocol and dependency lock
 remain unchanged.
 
+The `v0.2.3-pilot` attempt passed APT access, dependency installation, CAD
+construction, and the executable regression tests, then exposed a CUDA linker
+collision: cuSPARSE required `__nvJitLinkComplete_12_4` while the image's loader
+selected an incompatible nvJitLink. `v0.2.4-pilot` puts the locked CUDA wheel
+libraries first in the evaluation subprocesses' library search path, preserving
+driver paths afterward. The canary records `/proc/self/maps` and requires
+nvJitLink to load from the evaluation environment. Packages and model revisions
+are unchanged; successful submission alone does not establish runtime success.
+
 ```bash
 python -m unittest discover -s tests -v
 python -m evaluation.run --manifest /path/to/pilot.json \

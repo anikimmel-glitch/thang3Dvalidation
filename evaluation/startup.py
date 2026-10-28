@@ -11,6 +11,24 @@ import sys
 import time
 
 
+def runtime_environment(prefix, inherited):
+    """Prefer the CUDA wheel libraries over the image's older CUDA toolkit."""
+    prefix = Path(prefix)
+    nvidia = prefix / "lib/python3.11/site-packages/nvidia"
+    nvjitlink = nvidia / "nvjitlink/lib"
+    if not (nvjitlink / "libnvJitLink.so.12").is_file():
+        raise RuntimeError("Locked nvJitLink library missing from evaluation environment")
+    libraries = [nvjitlink] + sorted(p for p in nvidia.glob("*/lib")
+                                    if p.is_dir() and p != nvjitlink)
+    before = inherited.get("LD_LIBRARY_PATH", "")
+    # Preserve image driver/compatibility paths after the installed runtime libs.
+    search = list(dict.fromkeys([str(p) for p in libraries] +
+                               [p for p in before.split(":") if p]))
+    result = dict(inherited, LD_LIBRARY_PATH=":".join(search))
+    return result, dict(library_path_before=before, library_path_after=search,
+                        expected_nvjitlink=str(nvjitlink / "libnvJitLink.so.12"))
+
+
 def temp_access(directory, sandbox_user="_apt"):
     """Restore standard shared-temp permissions and test the APT user's access."""
     directory = Path(directory)

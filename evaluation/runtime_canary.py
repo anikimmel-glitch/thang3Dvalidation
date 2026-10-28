@@ -1,17 +1,33 @@
 """Exercise both actual renderer paths on known CAD before loading model weights."""
 from pathlib import Path
+import os
 import sys
 from evaluation.common import save, worker
 
 
 def main(out):
+    out.mkdir(parents=True, exist_ok=True)
+    def cuda_mappings():
+        maps = Path("/proc/self/maps").read_text()
+        return sorted({line.split()[-1] for line in maps.splitlines()
+                       if any(name in line for name in
+                              ("libnvJitLink", "libcusparse", "libcudart", "libcuda.so"))})
+    try:
+        import torch
+    finally:
+        save(out / "cuda_loader.json", dict(
+            library_search_path=os.environ.get("LD_LIBRARY_PATH", ""),
+            loaded_cuda_libraries=cuda_mappings()))
+    pinned = Path(sys.prefix) / "lib/python3.11/site-packages/nvidia/nvjitlink/lib"
+    nvjitlink = [Path(p) for p in cuda_mappings() if "libnvJitLink" in p]
+    if not nvjitlink or any(not p.resolve().is_relative_to(pinned.resolve()) for p in nvjitlink):
+        raise RuntimeError("PyTorch loaded nvJitLink outside the locked environment")
+    print("CUDA library origin verified against the locked environment", flush=True)
     import cadquery as cq
-    import torch
     from evaluation.adapters import Adapter
     from vendor.cad_recode.model import CADRecode
     from vendor.cadrille.cadrille import Cadrille
     from evaluation.geometry import canonical, mesh
-    out.mkdir(parents=True, exist_ok=True)
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA unavailable on the GPU worker")
     for device in range(torch.cuda.device_count()):

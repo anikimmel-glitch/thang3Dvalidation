@@ -6,7 +6,29 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from evaluation.startup import temp_access
+from evaluation.startup import runtime_environment, temp_access
+
+
+class RuntimeLibraryIsolation(unittest.TestCase):
+    def test_older_host_library_does_not_precede_locked_nvjitlink(self):
+        with tempfile.TemporaryDirectory() as folder:
+            prefix = Path(folder)
+            lib = prefix / "lib/python3.11/site-packages/nvidia/nvjitlink/lib"
+            lib.mkdir(parents=True)
+            (lib / "libnvJitLink.so.12").touch()
+            inherited = {"LD_LIBRARY_PATH": "/usr/local/cuda-12.1/lib64:/usr/local/nvidia/lib64",
+                         "OTHER_SETTING": "preserve"}
+            env, info = runtime_environment(prefix, inherited)
+            self.assertEqual(env["LD_LIBRARY_PATH"].split(":")[0], str(lib))
+            self.assertIn("/usr/local/nvidia/lib64", env["LD_LIBRARY_PATH"].split(":"))
+            self.assertEqual(env["OTHER_SETTING"], "preserve")
+            self.assertEqual(inherited["LD_LIBRARY_PATH"],
+                             "/usr/local/cuda-12.1/lib64:/usr/local/nvidia/lib64")
+
+    def test_missing_locked_library_fails_before_inference(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaisesRegex(RuntimeError, "nvJitLink library missing"):
+                runtime_environment(folder, {})
 
 
 @unittest.skipUnless(sys.platform == "linux" and os.geteuid() == 0,

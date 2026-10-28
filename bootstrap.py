@@ -8,7 +8,7 @@ import sys
 import time
 import traceback
 from urllib.parse import urlparse
-from evaluation.startup import temp_access, wait_display
+from evaluation.startup import runtime_environment, temp_access, wait_display
 
 root = Path(__file__).resolve().parent
 
@@ -64,11 +64,16 @@ def main():
                   "--only-binary=:all:", "--require-hashes", "-r",
                   str(root / "requirements-linux.lock.txt")], 2400)
         run_stage("pip_check", [str(python), "-m", "pip", "check"], 60)
+        run_env, cuda_paths = runtime_environment(env, os.environ)
+        run_env["PYTHONUNBUFFERED"] = "1"
+        (out / "cuda_library_paths.json").write_text(json.dumps(cuda_paths, indent=2))
+        print(json.dumps(dict(stage="cuda_library_paths", **cuda_paths)), flush=True)
         run_stage("cad_kernel", [str(python), "-c",
                   "import cadquery as cq; import OCP; "
                   "s=cq.Workplane('XY').box(2,3,4).faces('>Z').workplane().hole(1).val(); "
                   "assert s.isValid() and len(s.Solids())==1; "
-                  "print('CAD kernel import and solid construction passed',flush=True)"], 120)
+                  "print('CAD kernel import and solid construction passed',flush=True)"],
+                  120, run_env)
 
         stage = "display"
         display = ":97"
@@ -77,7 +82,7 @@ def main():
                                  "-nolisten", "tcp"], stdout=display_log,
                                 stderr=subprocess.STDOUT)
         wait_display(xvfb, display)
-        run_env = dict(os.environ, DISPLAY=display, PYTHONUNBUFFERED="1")
+        run_env["DISPLAY"] = display
         with (out / "environment.txt").open("w") as stream:
             subprocess.run([str(python), "-m", "pip", "freeze"],
                            stdout=stream, check=True, timeout=60)
