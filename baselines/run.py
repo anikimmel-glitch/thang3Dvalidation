@@ -67,7 +67,8 @@ def one(row,name,runtime,input_root,out,rank):
             shutil.copy2(prepared/"reference.stl",inputs/f'{row["pilot_id"]}.stl')
             save(target/"coordinate_transform.json",inverse_bbox(mesh.vertices,2.))
             commands=[
-                [python,repo/"run_pipeline.py",inputs,"--output-folder",work/"output","--fillet-chamfer"],
+                [python,repo/"run_pipeline.py",inputs,"--output-folder",work/"output",
+                 "--fillet-chamfer","--keep-history"],
                 [python,ROOT/"baselines/export_cadfit.py",repo,
                  work/"output"/row["pilot_id"]/"best_greedy_parallel_iterative.py",target/"raw.step"]]
         else:

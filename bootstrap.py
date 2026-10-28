@@ -9,6 +9,7 @@ import time
 import traceback
 from urllib.parse import urlparse
 from evaluation.startup import runtime_environment, temp_access, wait_display
+from evaluation.retention import Retention, source_snapshot
 
 root = Path(__file__).resolve().parent
 
@@ -28,6 +29,9 @@ def main():
         "baselines.run": "irl-cad-extra-baselines",
         "evaluation.run": "irl-cad-pilot"}[task]
     out.mkdir(parents=True, exist_ok=True)
+    source_snapshot(root, out)
+    retention = Retention(out)
+    retention.start()
     stage = "initializing"
     xvfb = None
     display_log = None
@@ -118,6 +122,7 @@ def main():
         print(json.dumps(report), flush=True)
         raise
     finally:
+        retention.finish()
         if xvfb is not None:
             xvfb.terminate()
             try:

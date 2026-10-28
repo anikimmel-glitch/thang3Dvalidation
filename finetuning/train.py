@@ -261,6 +261,17 @@ def track(args, manifest):
         steps = optimizer_epoch(adapter, accepted, args.out, optimizer, epoch, steps, total_steps, out)
         checkpoint = out / f"adapter_epoch_{epoch}.pt"
         torch.save(lora.state(adapter.model), checkpoint)
+        # Preserve optimizer and RNG state for explicit, reviewed recovery; a new
+        # run still never implicitly loads a partial training checkpoint.
+        training_state = dict(epoch=epoch, optimizer_step=steps, total_steps=total_steps,
+            optimizer=optimizer.state_dict(), adapter=lora.state(adapter.model),
+            torch_rng=torch.get_rng_state(), cuda_rng=torch.cuda.get_rng_state_all(),
+            python_rng=random.getstate(), split_sha256=manifest["split_sha256"],
+            model_lock=read(ROOT/"models.lock.json"), config=CONFIG)
+        temporary = out / f"training_state_epoch_{epoch}.tmp"
+        torch.save(training_state, temporary)
+        temporary.replace(out / f"training_state_epoch_{epoch}.pt")
+        del training_state
         checkpoint_sha = hashlib.sha256(checkpoint.read_bytes()).hexdigest()
         records = evaluate(adapter, val_ready, args.out, out / f"validation_epoch_{epoch}")
         score = selection_score(val_ready, records)
