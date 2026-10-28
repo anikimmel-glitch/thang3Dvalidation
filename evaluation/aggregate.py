@@ -46,6 +46,28 @@ def aggregate(manifest, out):
                 label:summarize([r for r in rows if r["complexity_bin"]==i],
                     {k:v for k,v in records.items() if k in ids and v["complexity_bin"]==i})
                 for i,label in enumerate(manifest["bin_labels"])}
+            if manifest.get("cohort_mode") == "all_curated_bodies":
+                # Body-weighted summaries can be dominated by large assemblies.
+                # Also preserve equal source-family weighting with explicit coverage.
+                families = {}
+                for row in rows:
+                    families.setdefault(row["source_group"], []).append(row)
+                per_source = {}
+                for source, members in families.items():
+                    member_ids = {row["pilot_id"] for row in members}
+                    per_source[source] = summarize(
+                        members, {k: v for k, v in records.items() if k in member_ids})
+                usable = [s for s in per_source.values() if s["scored"]]
+                group[role]["source_macro"] = dict(
+                    expected_sources=len(families), scored_sources=len(usable),
+                    complete_sources=sum(s["complete_protocol_coverage"] for s in per_source.values()),
+                    validity_rate=statistics.mean(s["validity_rate"] for s in usable) if usable else None,
+                    surface_f1_mean={
+                        mode: statistics.mean(s["scores"][mode]["surface_f1_mean"] for s in usable)
+                        if usable else None
+                        for mode in ("native_frame", "independent_bbox_normalization")},
+                    note="Equal weight per source family among scored bodies; consult coverage.")
+                group[role]["by_source_group"] = per_source
         results[model.name] = group
     (out/"summary.json").write_text(json.dumps(results,indent=2,allow_nan=False))
     return results

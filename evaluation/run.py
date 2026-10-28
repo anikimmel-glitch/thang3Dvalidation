@@ -11,19 +11,9 @@ import time
 import copy
 from evaluation.common import ROOT, read, save, worker, record_failure, evaluate_program
 from evaluation.aggregate import aggregate
+from evaluation.manifest import validate_manifest
 
 MODELS = ("cad_recode_pc", "cadrille_pc", "cadrille_rgb", "cadreasoner_native")
-
-
-def validate_manifest(m):
-    rows = m["files"]
-    for key in ("pilot_id", "source_group", "sha256"):
-        if len({r[key] for r in rows}) != len(rows):
-            raise ValueError(f"Repeated {key}")
-    for r in rows:
-        if Path(r["file"]).name != r["file"] or r["role"] not in ("development","evaluation"):
-            raise ValueError("Invalid manifest path or role")
-    return rows
 
 
 def prepare_one(row, input_root, out, image_kinds):
@@ -90,7 +80,9 @@ def run(args, manifest):
     rows=validate_manifest(manifest)
     if args.limit:
         # Smoke uses development subjects only, balanced across the five bins.
-        dev=[r for r in rows if r["role"]=="development"]
+        dev=[r for r in rows if r["role"]=="development"
+             and (not manifest.get("smoke_subject_ids")
+                  or r["pilot_id"] in manifest["smoke_subject_ids"])]
         ordered=sorted(dev,key=lambda r:(sum(x["complexity_bin"]==r["complexity_bin"]
                       for x in dev[:dev.index(r)]),r["complexity_bin"]))
         rows=ordered[:args.limit]

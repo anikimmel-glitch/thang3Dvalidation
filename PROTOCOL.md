@@ -82,3 +82,22 @@ ablations; all-outcome failure taxonomy; blinded human review separating functio
 geometry from engraving; and a cross-dataset test under this same evaluator.
 The current runner emits per-subject data needed for these analyses. It does not
 claim those experiments or human annotations are already complete.
+
+## Full curated-cohort evaluation
+
+The subsequent `all_curated_bodies` manifest evaluates all 7,537 bodies from
+the same frozen curated snapshot, including correlated assembly siblings.
+Exact content hashes, filenames, and subject IDs remain unique. Every connected
+source/representation group has a single development/evaluation role; the 50
+pilot development families remain development, including their other bodies.
+Pilot subject IDs and seeds are preserved and results are re-evaluated with
+the same geometry, model, input, and decoding protocol. The original pilot
+artifacts and source-distinct analysis remain unchanged.
+
+Report both body-weighted and equal-source-weighted summaries, coverage,
+complexity bins, and source-group clustered uncertainty. Full-cohort results
+cannot be treated as thousands of independent sources or compared directly
+to the deliberately stratified pilot without accounting for the change in
+weighting. Source-family roles do not establish creator or training-data
+independence. Reference-preparation failures remain visible; runtime completion
+does not imply full scoring coverage.
