@@ -51,6 +51,12 @@ def main():
         result.check_returncode()
 
     try:
+        if task == "baselines.run":
+            stage = "extra_baselines_host_abi"
+            from baselines.runtime import check_runtime
+            abi = check_runtime()
+            (out / "host_abi.json").write_text(json.dumps(abi, indent=2))
+            print(json.dumps(dict(stage=stage, **abi)), flush=True)
         stage = "temporary_directory"
         temp_access("/tmp")
         # Test the real APT user and install system libraries before large wheels.

@@ -17,6 +17,12 @@ evaluation target unavailable at inference.
 
 Code and DualBrep weights are revision-pinned in `lock.json`. Separate upstream
 Python/OCC environments preserve the common locked scoring environment.
+The host container must provide glibc >= 2.35 (Ubuntu 22.04 or a compatible
+newer Linux image). CADFit's pinned PyMeshLab 2025.7 Python 3.10 wheel targets
+manylinux_2_35; the DualBrep torch_cluster wheel also needs newer glibc than
+Ubuntu 20.04 provides. The extra-baseline bootstrap checks this before installing
+dependencies and records the accepted ABI. This changes the host runtime only;
+the upstream Python versions, requirements, inputs, and scoring remain fixed.
 Resolved dependency versions and checkpoint SHA-256 values are recorded on the
 worker. Upstream transitive dependencies are not yet an independently validated
 fully hashed lock. Environment checks and ten **training-only** smoke subjects
