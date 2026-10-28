@@ -45,8 +45,7 @@ class Adapter:
         else:
             raise ValueError(name)
 
-    @torch.inference_mode()
-    def generate(self, prepared):
+    def inputs(self, prepared):
         proc, device = self.processor, self.model.device
         if self.name == "cad_recode_pc":
             points = np.load(prepared/"reference.npz")["pc256"].astype(np.float32)
@@ -55,9 +54,6 @@ class Adapter:
                 input_ids=torch.tensor([ids], device=device),
                 attention_mask=torch.tensor([[-1]*len(points)+[1]], device=device),
                 point_cloud=torch.tensor(points[None], device=device))
-            output = self.model.generate(**inputs, max_new_tokens=768, do_sample=False,
-                                         pad_token_id=proc.pad_token_id)
-            text = proc.batch_decode(output[:,len(ids):], skip_special_tokens=True)[0]
         elif self.name.startswith("cadrille"):
             from vendor.cadrille.cadrille import collate
             item = dict(file_name=prepared.name, description="Generate cadquery code")
@@ -68,9 +64,6 @@ class Adapter:
             inputs = collate([item], proc, n_points=256, eval=True)
             inputs.pop("file_name")
             inputs = {k:v.to(device) for k,v in inputs.items()}
-            output = self.model.generate(**inputs, max_new_tokens=768, do_sample=False)
-            text = proc.batch_decode(output[:,inputs["input_ids"].shape[1]:],
-                skip_special_tokens=True, clean_up_tokenization_spaces=False)[0]
         else:
             from qwen_vl_utils import process_vision_info
             messages = [[{"role":"user","content":[
@@ -81,7 +74,19 @@ class Adapter:
             images, videos = process_vision_info(messages)
             inputs = proc(text=texts, images=images, videos=videos, padding=True,
                           return_tensors="pt").to(device)
-            output = self.model.generate(**inputs, max_new_tokens=1500, do_sample=False)
-            text = proc.batch_decode(output[:,inputs["input_ids"].shape[1]:],
-                skip_special_tokens=True, clean_up_tokenization_spaces=False)[0]
-        return text
+        return inputs
+
+    @torch.inference_mode()
+    def generate(self, prepared, sample=False):
+        inputs = self.inputs(prepared)
+        options = dict(max_new_tokens=1500 if self.name == "cadreasoner_native" else 768,
+                       do_sample=sample)
+        if sample:
+            options.update(temperature=.7, top_p=.9, top_k=0)
+        if self.name == "cad_recode_pc":
+            options["pad_token_id"] = self.processor.pad_token_id
+        output = self.model.generate(**inputs, **options)
+        decode = dict(skip_special_tokens=True)
+        if self.name != "cad_recode_pc":
+            decode["clean_up_tokenization_spaces"] = False
+        return self.processor.batch_decode(output[:,inputs["input_ids"].shape[1]:], **decode)[0]

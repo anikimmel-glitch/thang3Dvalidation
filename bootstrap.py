@@ -15,7 +15,16 @@ root = Path(__file__).resolve().parent
 
 def main():
     arguments = sys.argv[1:]
-    out = Path("/opt/ml/checkpoints/irl-cad-pilot")
+    task = "evaluation.run"
+    if "--task" in arguments:
+        index = arguments.index("--task")
+        selected = arguments[index+1]
+        if selected != "finetuning":
+            raise ValueError("Unknown bootstrap task")
+        task = "finetuning.train"
+        del arguments[index:index+2]
+    out = Path("/opt/ml/checkpoints/irl-cad-finetuning" if task == "finetuning.train"
+               else "/opt/ml/checkpoints/irl-cad-pilot")
     out.mkdir(parents=True, exist_ok=True)
     stage = "initializing"
     xvfb = None
@@ -94,9 +103,9 @@ def main():
         (out / "bootstrap_passed.json").write_text(json.dumps(
             dict(time=time.time(), checks=["apt", "dependencies", "CAD", "tests", "renderers"]),
             indent=2))
-        stage = "pilot"
-        print("[pilot-bootstrap] setup passed; starting development smoke and pilot", flush=True)
-        subprocess.run([str(python), "-m", "evaluation.run", *arguments],
+        stage = task
+        print(f"[pilot-bootstrap] setup passed; starting {task}", flush=True)
+        subprocess.run([str(python), "-m", task, *arguments],
                        cwd=root, env=run_env, check=True)
     except Exception as error:
         report = dict(stage=stage, error=f"{type(error).__name__}: {error}",
