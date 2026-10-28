@@ -45,8 +45,10 @@ class Adapter:
         else:
             raise ValueError(name)
 
-    def inputs(self, prepared):
+    def inputs(self, prepared, context=None):
         proc, device = self.processor, self.model.device
+        if context and self.name.endswith("_pc"):
+            raise ValueError("Text context is supported only by explicit image-language tracks")
         if self.name == "cad_recode_pc":
             points = np.load(prepared/"reference.npz")["pc256"].astype(np.float32)
             ids = [proc.pad_token_id]*len(points) + [proc("<|im_start|>")["input_ids"][0]]
@@ -56,7 +58,8 @@ class Adapter:
                 point_cloud=torch.tensor(points[None], device=device))
         elif self.name.startswith("cadrille"):
             from vendor.cadrille.cadrille import collate
-            item = dict(file_name=prepared.name, description="Generate cadquery code")
+            item = dict(file_name=prepared.name, description="Generate cadquery code" +
+                        ("\nCreator-supported body context (reference geometry is normalized): "+context if context else ""))
             if self.name.endswith("_pc"):
                 item["point_cloud"] = np.load(prepared/"reference.npz")["pc256"]
             else:
@@ -68,7 +71,8 @@ class Adapter:
             from qwen_vl_utils import process_vision_info
             messages = [[{"role":"user","content":[
                 {"type":"image","image":Image.open(prepared/"cadreasoner.png").convert("RGB")},
-                {"type":"text","text":"import cadquery as cq\n"}]}]]
+                {"type":"text","text":("Creator-supported body context (reference geometry is normalized): "+
+                    context+"\n" if context else "")+"import cadquery as cq\n"}]}]]
             texts = [proc.apply_chat_template(x, tokenize=False, add_generation_prompt=True)
                      for x in messages]
             images, videos = process_vision_info(messages)
@@ -77,8 +81,8 @@ class Adapter:
         return inputs
 
     @torch.inference_mode()
-    def generate(self, prepared, sample=False):
-        inputs = self.inputs(prepared)
+    def generate(self, prepared, sample=False, context=None):
+        inputs = self.inputs(prepared, context=context)
         options = dict(max_new_tokens=1500 if self.name == "cadreasoner_native" else 768,
                        do_sample=sample)
         if sample:

@@ -147,7 +147,8 @@ def optimizer_epoch(adapter, accepted, root, optimizer, epoch, steps, total_step
     # Equal probability of each accepted source; then uniform within that source.
     rng = random.Random(CONFIG["seed"] + epoch)
     names = sorted(groups)
-    stream = [rng.choice(groups[rng.choice(names)]) for _ in accepted]
+    stream = [rng.choice(groups[rng.choice(names)])
+              for _ in range(CONFIG.get("epoch_draws",len(accepted)))]
     losses = []
     for first in range(0, len(stream), CONFIG["accumulation"]):
         batch = stream[first:first+CONFIG["accumulation"]]
@@ -254,7 +255,7 @@ def track(args, manifest):
     optimizer = torch.optim.AdamW([p for p in adapter.model.parameters() if p.requires_grad],
                                  lr=CONFIG["learning_rate"], weight_decay=0.)
     steps = 0
-    total_steps = math.ceil(len(accepted)/CONFIG["accumulation"]) * CONFIG["epochs"]
+    total_steps = math.ceil(CONFIG.get("epoch_draws",len(accepted))/CONFIG["accumulation"]) * CONFIG["epochs"]
     history = [dict(epoch=0, validation_source_macro_f1=best_score)]
     save(out / "training_started.json", dict(time=time.time(), total_steps=total_steps))
     for epoch in range(1, CONFIG["epochs"]+1):
@@ -331,6 +332,8 @@ def run(args, manifest):
         env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(rank), HF_HUB_OFFLINE="1")
         command = [sys.executable, "-m", "finetuning.train", "--manifest", str(args.manifest),
                    "--out", str(track_root), "--input", str(args.input), "--model", name]
+        if getattr(args,"epoch_draws",0):
+            command += ["--epoch-draws",str(args.epoch_draws)]
         stream = (args.out/f"{name}.log").open("w")
         processes.append((name, subprocess.Popen(command, cwd=ROOT, env=env,
                           stdout=stream, stderr=subprocess.STDOUT), stream))
@@ -356,7 +359,13 @@ if __name__ == "__main__":
     p.add_argument("--input", type=Path, default=Path("/opt/ml/input/data/training"))
     p.add_argument("--out", type=Path, default=Path("/opt/ml/checkpoints/irl-cad-finetuning"))
     p.add_argument("--model", choices=MODELS)
+    p.add_argument("--epoch-draws", type=int, default=0,
+                   help="Explicit study control: equal source-sampled training examples per epoch.")
     a = p.parse_args()
+    if a.epoch_draws:
+        if a.epoch_draws < 20:
+            raise ValueError("Study epoch sample budget too small")
+        CONFIG["epoch_draws"]=a.epoch_draws
     try:
         (track if a.model else run)(a, read(a.manifest))
     except Exception as exc:

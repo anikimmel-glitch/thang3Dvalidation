@@ -20,13 +20,15 @@ def main():
     if "--task" in arguments:
         index = arguments.index("--task")
         selected = arguments[index+1]
-        if selected not in ("finetuning", "extra-baselines"):
+        if selected not in ("finetuning", "extra-baselines", "cvpr-studies"):
             raise ValueError("Unknown bootstrap task")
-        task = {"finetuning": "finetuning.train", "extra-baselines": "baselines.run"}[selected]
+        task = {"finetuning": "finetuning.train", "extra-baselines": "baselines.run",
+                "cvpr-studies": "studies.run"}[selected]
         del arguments[index:index+2]
     out = Path("/opt/ml/checkpoints") / {
         "finetuning.train": "irl-cad-finetuning",
         "baselines.run": "irl-cad-extra-baselines",
+        "studies.run": "irl-cad-studies",
         "evaluation.run": "irl-cad-pilot"}[task]
     out.mkdir(parents=True, exist_ok=True)
     source_snapshot(root, out)
@@ -66,6 +68,15 @@ def main():
             manifest = Path("/tmp/irl-cad-run-manifest.json")
             boto3.client("s3").download_file(uri.netloc, uri.path.lstrip("/"), str(manifest))
             arguments[i:i + 2] = ["--manifest", str(manifest)]
+        if "--reviews-s3" in arguments:
+            import boto3
+            i = arguments.index("--reviews-s3")
+            uri = urlparse(arguments[i + 1])
+            if uri.scheme != "s3" or not uri.netloc or not uri.path:
+                raise ValueError("Expected a review-bundle S3 URI")
+            reviews = Path("/tmp/irl-cad-human-reviews.json")
+            boto3.client("s3").download_file(uri.netloc, uri.path.lstrip("/"), str(reviews))
+            arguments[i:i + 2] = ["--reviews", str(reviews)]
 
         conda = shutil.which("conda")
         if not conda:

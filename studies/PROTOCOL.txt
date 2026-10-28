@@ -1,0 +1,119 @@
+CVPR follow-up studies, frozen 2026-10-28
+
+This is a secondary protocol motivated by inspected pilot results, not a
+prospectively unseen confirmatory evaluation. The private study_plan.json has a
+canonical SHA-256 and every geometry source has exact bytes and SHA-256. Code
+is versioned separately. No annotations in this release are called human
+validated before actual independent human review.
+
+Job 1: --task cvpr-studies --mode benchmark
+
+1. Controlled reconstruction comparison
+   Evaluate 250 Thangs test bodies, 250 CADFS, 250 Fusion segmentation and 250
+   reconstructed DeepCAD bodies using the same four pinned pretrained tracks,
+   canonical normalization, per-body seeds, greedy decoding and metrics.
+   Preserve native and independently normalized scores. Invalid CAD/programs
+   count as model failures; infrastructure/preparation exclusions are reported.
+   Selection is source-group uniform within existing eligible audit samples.
+   Thangs comes from the existing purposive pilot-held-out pool, not a random
+   sample of all Thangs. Fusion parts sharing the observed design-ID prefix
+   are grouped. Known CADFS/DeepCAD source IDs and exact hashes are excluded
+   across selected cohorts. Unknown pretraining overlap remains possible.
+   These audit samples are not the official benchmark test splits of those
+   releases. Published leaderboard numbers cannot be substituted into this
+   comparison; absence from each checkpoint's upstream training is unverified.
+
+   Freeze one-to-one cross-dataset matches before inference. Three covariates:
+   log(1+unified faces), nonplanar area fraction from the audited geometry, and
+   log(1+100*small-face fraction). Small = less than .5% of surface area.
+   Maximum-cardinality matching within .5 pooled SD on every covariate,
+   minimizing squared distance among feasible pairs. Report imbalance,
+   unmatched subjects, unification failures, and coverage. Matching reduces
+   measured confounds; a remaining gap does not establish causation.
+
+2. Feature preservation
+   Automatic diagnostics: equal-patch surface recall, recall on small patches
+   and curved carriers, and closed oriented mesh boundary genus difference.
+   Up to 256 native/unified faces are uniformly sampled, 32 points per face.
+   Input coverage and output recall share the fixed .02 canonical threshold.
+   These are geometric diagnostics, not labels for holes, fillets or function.
+   Functional evaluation uses independently adjudicated reference features:
+   through-holes, slots, thin walls, curved interfaces and repeated structures.
+   Report feature presence precision/recall and normalized relative dimension
+   errors where assessable; retain failed and unassessable outcomes.
+
+3. Input information ablations
+   50 held-out Thangs bodies, ten per available face bin; same references.
+   PC tracks: clean, two new sampling seeds, 64 distinct points repeated to
+   retain 256 tokens, Gaussian sigma .005, half-space observation with repeated
+   visible points. Keep the scoring surface immutable. Record surface-patch
+   observation coverage and feature reconstruction diagnostics per condition.
+   Image tracks: clean and 4x resolution degradation at fixed final canvas;
+   Cadrille additionally has a one-of-four-view condition at fixed canvas.
+   These vary available observations within supported adapter input shapes.
+   They are not a claim about arbitrary larger context windows or real scans.
+   Paired source bootstrap, 2,000 draws, seed 20261028.
+
+4. Adaptation utility: separate queued --mode adaptation job
+   Four recipes: nested 20, 41, 82 Thangs training sources; 82 CADFS sources.
+   One body per source. Same 20 original Thangs validation groups and same
+   250 test groups in every recipe. Every original pilot test family remains
+   excluded from training and checkpoint selection, including unselected siblings.
+   All four model tracks use the existing geometry-verified self-training
+   method and unchanged quality gates. Fix 82 source-sampled examples per epoch,
+   three epochs, 33 optimizer steps. Checkpoint selection uses validation only
+   with the unchanged pretrained checkpoint eligible. Candidate generation
+   is four attempts/body; token lengths, labels accepted and wall time vary.
+   Preserve optimizer states, candidates, acceptance failures, losses, validation
+   history, all epochs, pretrained/test outputs, and paired metrics. Analyze
+   gains and acceptance by complexity, curvature, and spline presence.
+   One seed cannot establish robustness to optimizer randomness. Small recipes
+   can fail the original minimum of 20 accepted bodies and 8 sources; report
+   unavailable points, never relax the gate based on test results.
+   The original 987-body adaptation remains a separate existing experiment.
+
+5. Design intent
+   Prepare 240 reference-body review packets, source evidence, and two independent
+   reviewer forms. Separate creator-stated context from template-generated
+   geometric descriptions and inferred body semantics. Reviewers ground claims
+   to a body/region, record ambiguity, and adjudicate disagreements.
+   Prediction reviews use blinded IDs; identity mappings stay in an admin file.
+   Claim availability is not guaranteed for every selected body.
+   studies.annotations validates human reviews and computes agreement/features.
+   --mode context is executable after reviews are supplied: image-language
+   tracks receive geometry only, validated body context, or a fixed shuffled
+   context from another source. Remove identifiers and absolute dimensions.
+   No semantic gold labels or text-conditioned performance claims are fabricated.
+   Do not submit this dependent stage before its human-review gate is met.
+
+6. Representation and source controls
+   Retain native and valid volume-preserving unified face counts, carrier area
+   entropy, surface area fractions, failure records, and input/output topology.
+   Compare face-count correlations before/after unification. Use full curated
+   population metadata for source macro means, source concentration, removal of
+   the ten largest sources, top 1%/5% tail sensitivity, and restoration of the
+   293 identified lettering-family exclusions. All are sensitivity analyses.
+   Screen near-duplicate candidates from six nearest geometry-descriptor
+   neighbors, then canonical surface distances. Flag .99 bidirectional coverage
+   at .01 units plus symmetric squared Chamfer <= .0001. Primary scores retain
+   them; sensitivity omits both flagged members. This screen is incomplete
+   and orientation-sensitive, not a guarantee of geometric uniqueness.
+
+Artifacts and analysis
+   Keep exact cohort/matching manifests, inputs/renders, predictions/programs,
+   STEP/STL, all status/error logs, per-subject scores, auxiliary diagnostics,
+   flat JSONL analysis rows, figure source data, vector plots, environment and
+   code revisions. No pooling of models, candidates, repeated observations,
+   smoke/development/test or retries. Source/pair bootstrap intervals describe
+   the selected cohort; many feature comparisons remain exploratory.
+   Study source/hash checks, isolation from cloud credentials during generated
+   code execution, and runtime CAD/render tests precede model inference.
+   Human reviews are a dependency, not a reason to discard completed automatic
+   work. Orchestration success is not full protocol coverage.
+
+Storage
+   Geometry/model inputs and large outputs stay on Sagey/S3. Only generated
+   DeepCAD reference STEP and metadata are uploaded from the laptop; no new
+   geometry is downloaded locally. Remote raw-geometry acquisition is also
+   bounded at 2.5 GB per job. The task's existing cumulative laptop download
+   ledger and 1 GB free-space guard remain in effect for any future retrieval.

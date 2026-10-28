@@ -59,6 +59,7 @@ def infer(args, rows):
             continue
         start=time.monotonic()
         try:
+            torch.cuda.reset_peak_memory_stats()
             code=adapter.generate(prepared)
         except Exception as exc:
             record_failure(row,dest/"metrics.json","inference_runtime_error",
@@ -66,6 +67,7 @@ def infer(args, rows):
             torch.cuda.empty_cache()
             continue
         save(dest/"generation.json",dict(inference_seconds=time.monotonic()-start,
+            peak_cuda_allocated_bytes=torch.cuda.max_memory_allocated(),
             prompt_contains_source_text=False, ground_truth_candidate_selection=False,
             max_new_tokens=1500 if args.model=="cadreasoner_native" else 768,
             n_candidates=1, refinement_steps=0))
