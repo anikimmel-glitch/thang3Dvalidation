@@ -21,6 +21,12 @@ Install the versions in `requirements.txt` in a disposable Linux GPU environment
 Image tracks require Xvfb/OpenGL. Sagey uses `bootstrap.py` to install these
 dependencies remotely and run the tests before inference.
 
+The `v0.2.1-pilot` bootstrap fixes the unavailable `cadquery-ocp==7.7.2`
+pin to the published `7.7.2.2b2` wheel for OCCT 7.7.2. It checks installed
+dependency consistency and requires CAD-kernel import and solid construction
+before the tests. The original `v0.2.0-pilot` attempt failed at package
+installation and produced no reconstruction results.
+
 ```bash
 python -m unittest discover -s tests -v
 python -m evaluation.run --manifest /path/to/pilot.json \

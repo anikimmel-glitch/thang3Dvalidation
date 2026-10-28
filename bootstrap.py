@@ -27,10 +27,18 @@ if not python.exists():
         "-c","conda-forge","python=3.11","pip"],check=True,timeout=1200)
 subprocess.run([str(python),"-m","pip","install","--no-cache-dir","-r",
                 str(root/"requirements.txt")],check=True,timeout=2400)
+subprocess.run([str(python),"-m","pip","check"],check=True,timeout=60)
 if not shutil.which("Xvfb"):
     subprocess.run(["apt-get","update"],check=True,timeout=300)
     subprocess.run(["apt-get","install","-y","xvfb","libgl1","libglu1-mesa",
                     "libxrender1","libosmesa6"],check=True,timeout=600)
+# Fail explicitly on CAD-kernel import errors before tests can skip CAD coverage.
+subprocess.run([str(python),"-c",
+    "import cadquery as cq; import OCP; "
+    "s=cq.Workplane('XY').box(2,3,4).faces('>Z').workplane().hole(1).val(); "
+    "assert s.isValid() and len(s.Solids())==1; "
+    "print('CAD kernel import and solid construction passed', flush=True)"],
+    check=True,timeout=120)
 display=":97"
 xvfb=subprocess.Popen(["Xvfb",display,"-screen","0","1024x1024x24","-nolisten","tcp"])
 run_env=dict(os.environ,DISPLAY=display,PYTHONUNBUFFERED="1")

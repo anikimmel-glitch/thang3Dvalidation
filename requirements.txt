@@ -4,7 +4,8 @@ transformers==4.50.3
 accelerate==0.34.2
 qwen-vl-utils==0.0.10
 cadquery==2.5.2
-cadquery-ocp==7.7.2
+# Published OCCT 7.7.2 Python wheel (7.7.2 itself is not a PyPI release).
+cadquery-ocp==7.7.2.2b2
 multimethod==1.12
 numpy==2.2.0
 trimesh==4.5.3
