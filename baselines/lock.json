@@ -1,0 +1,30 @@
+{
+  "cadfit_mesh": {
+    "repository": "https://github.com/ghadinehme/CADFit",
+    "commit": "227a7acdc6972c646859d7e12da279e6e4ae2789",
+    "paper": "https://arxiv.org/abs/2605.01171",
+    "year": 2026,
+    "license": "CC BY-NC 4.0",
+    "python": "3.10",
+    "requirements_sha256": "616b9bfdd60a64c9707aacbcaa0f0f94fad8f950e9cb35cc8f27042f4c128a07",
+    "input": "complete tessellated reference mesh, without BRep topology",
+    "procedure": "one residual refinement iteration, fillet/chamfer enabled; input-mesh IoU optimization",
+    "timeout_seconds": 2700,
+    "limitation": "Richer input and optimization budget than point/image neural models; report as mesh-fitting comparison."
+  },
+  "dualbrep_pc": {
+    "repository": "https://github.com/AutodeskAILab/DualBrep",
+    "commit": "9707b4b4e531943f38e83092ff7ad833cc60b2cb",
+    "paper": "https://arxiv.org/abs/2606.31579",
+    "year": 2026,
+    "license": "Apache-2.0",
+    "python": "3.12",
+    "model_id": "ADSKAILab/DualBrep",
+    "model_revision": "91dbec0917de8b9a9c9967850e87e8924f7d9419",
+    "checkpoint_files": ["pc_vae.ckpt", "parametrizer.ckpt"],
+    "input": "32768 independently sampled oriented surface points; no face/edge labels",
+    "procedure": "point-cloud autoencoder, 256 cubed field resolution, 24 reconstruction rotations, 200 latent optimization steps",
+    "timeout_seconds": 2700,
+    "limitation": "Larger input and test-time optimization budget; released training pipeline unavailable."
+  }
+}

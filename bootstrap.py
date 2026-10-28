@@ -19,12 +19,14 @@ def main():
     if "--task" in arguments:
         index = arguments.index("--task")
         selected = arguments[index+1]
-        if selected != "finetuning":
+        if selected not in ("finetuning", "extra-baselines"):
             raise ValueError("Unknown bootstrap task")
-        task = "finetuning.train"
+        task = {"finetuning": "finetuning.train", "extra-baselines": "baselines.run"}[selected]
         del arguments[index:index+2]
-    out = Path("/opt/ml/checkpoints/irl-cad-finetuning" if task == "finetuning.train"
-               else "/opt/ml/checkpoints/irl-cad-pilot")
+    out = Path("/opt/ml/checkpoints") / {
+        "finetuning.train": "irl-cad-finetuning",
+        "baselines.run": "irl-cad-extra-baselines",
+        "evaluation.run": "irl-cad-pilot"}[task]
     out.mkdir(parents=True, exist_ok=True)
     stage = "initializing"
     xvfb = None
