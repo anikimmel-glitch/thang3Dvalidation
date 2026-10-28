@@ -4,7 +4,7 @@ job_name = "thang3d-reconstruction-pilot"
 cluster = "p5"
 launch = { mode = "single" }
 repo_url = "https://github.com/anikimmel-glitch/thang3Dvalidation"
-repo_ref = "v0.2.2-pilot"
+repo_ref = "v0.2.3-pilot"
 bootstrap_cmd = "bootstrap.py"
 bootstrap_args = ["--manifest-s3", "s3://YOUR_BUCKET/YOUR_PREFIX/pilot.json", "--smoke-first"]
 dataset_s3 = "s3://YOUR_BUCKET/YOUR_PREFIX/step/"

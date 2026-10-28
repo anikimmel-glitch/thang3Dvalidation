@@ -43,6 +43,16 @@ uv pip compile requirements.txt --python-platform x86_64-manylinux_2_31 \
   -o requirements-linux.lock.txt
 ```
 
+The `v0.2.2-pilot` attempt installed the locked packages and passed `pip check`,
+then stopped because APT could not create temporary files. `v0.2.3-pilot`
+restores the standard sticky shared-temp mode inside the disposable worker,
+tests access as `_apt`, and installs rendering system libraries first.
+Setup stages retain complete logs and a failure receipt in checkpoints.
+After setup, a synthetic CAD canary exercises both renderers, model imports,
+and each CUDA device before model weights are fetched. It contributes no
+benchmark subjects or scores. The 500-subject protocol and dependency lock
+remain unchanged.
+
 ```bash
 python -m unittest discover -s tests -v
 python -m evaluation.run --manifest /path/to/pilot.json \
