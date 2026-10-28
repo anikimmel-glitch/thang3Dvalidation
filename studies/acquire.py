@@ -2,10 +2,22 @@
 import hashlib
 from pathlib import Path
 import struct
+import subprocess
+import sys
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 import zlib
-from evaluation.common import save
+from evaluation.common import ROOT, read, save
+
+
+def sdk_runtime():
+    """Check the image's SDK offline, without requesting or exposing credentials."""
+    import boto3
+    import botocore
+    if "s3" not in boto3.Session().get_available_services():
+        raise RuntimeError("Acquisition SDK does not provide the S3 service")
+    return dict(python=sys.executable, boto3=boto3.__version__,
+                botocore=botocore.__version__, s3_service_available=True)
 
 def verified(path,row):
     return (path.exists() and path.stat().st_size==row["bytes"] and
@@ -36,10 +48,22 @@ def unpack(block, row):
         raise ValueError("Member length/CRC mismatch")
     return raw
 
-def acquire(rows,out):
-    import boto3
-    from evaluation.common import read
+def acquire(rows,out,acquisition_python=None):
+    # Keep SDK dependencies outside the locked scoring/CAD environment. The
+    # bootstrap image already uses this interpreter to fetch the study manifest.
+    out=Path(out)
     inputs=out/"inputs";inputs.mkdir(parents=True,exist_ok=True)
+    if acquisition_python is not None:
+        request=out/"acquisition_rows.json"
+        save(request,rows)
+        with (out/"acquisition_process.log").open("a") as log:
+            subprocess.run([str(acquisition_python),"-m","studies.acquire",
+                            "--rows",str(request.resolve()),"--out",str(out.resolve())],
+                           cwd=ROOT,stdout=log,stderr=subprocess.STDOUT,check=True)
+        if not all(verified(inputs/r["file"],r) for r in rows):
+            raise RuntimeError("Acquisition process returned without all frozen geometry hashes")
+        return inputs
+    import boto3
     ledger=read(out/"acquisition_ledger.json") if (out/"acquisition_ledger.json").exists() else dict(
         reserved_bytes=0,cap_bytes=2500000000,scope="Worker raw geometry transfers; no local laptop downloads",receipts=[])
     s3=boto3.client("s3")
@@ -86,3 +110,25 @@ def acquire(rows,out):
         ledger["receipts"].append(dict(pilot_id=row["pilot_id"],sha256=row["sha256"],bytes=len(raw),source=f))
         save(out/"acquisition_ledger.json",ledger)
     return inputs
+
+
+def main():
+    import argparse
+    import json
+    parser=argparse.ArgumentParser()
+    parser.add_argument("--check-runtime",action="store_true")
+    parser.add_argument("--rows",type=Path)
+    parser.add_argument("--out",type=Path)
+    args=parser.parse_args()
+    runtime=sdk_runtime()
+    if args.check_runtime:
+        print(json.dumps(runtime),flush=True)
+        return
+    if args.rows is None or args.out is None:
+        parser.error("--rows and --out are required for acquisition")
+    save(args.out/"acquisition_sdk.json",runtime)
+    acquire(read(args.rows),args.out)
+
+
+if __name__=="__main__":
+    main()

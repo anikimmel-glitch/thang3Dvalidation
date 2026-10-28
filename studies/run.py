@@ -58,8 +58,8 @@ def feature_scores(plan,out):
             save(dest.with_suffix(".failure.json"),dict(status="feature_diagnostic_failed"))
     with ThreadPoolExecutor(max_workers=8) as pool:list(pool.map(one,work))
 
-def benchmark_suite(plan,out):
-    inputs=acquire(plan["files"],out)
+def benchmark_suite(plan,out,acquisition_python=None):
+    inputs=acquire(plan["files"],out,acquisition_python)
     # Annotation reference labels are requested before predictions/metrics are exposed.
     packet(plan,out/"annotation")
     args=argparse.Namespace(manifest=out/"study_plan.json",input=inputs,out=out/"benchmark",
@@ -109,12 +109,12 @@ def recipe_manifest(plan,dataset,n):
     m["split_sha256"]=digest(m);validate(m)
     return m
 
-def adaptation_suite(plan,out):
+def adaptation_suite(plan,out,acquisition_python=None):
     from studies.analysis import interval
     recipes=[("Thangs",20),("Thangs",41),("Thangs",82),("CADFS",82)]
     manifests=[recipe_manifest(plan,d,n) for d,n in recipes]
     needed={r["pilot_id"]:r for m in manifests for r in m["files"]}
-    inputs=acquire(list(needed.values()),out)
+    inputs=acquire(list(needed.values()),out,acquisition_python)
     statuses={}
     for (dataset,n),manifest in zip(recipes,manifests):
         name=f"{dataset.lower()}_{n}_sources";dest=out/"adaptation"/name;dest.mkdir(parents=True,exist_ok=True)
@@ -155,7 +155,7 @@ def adaptation_suite(plan,out):
     save(out/"automated_studies_completed.json",dict(recipes=statuses,
         note="Gate failures are scientific limitations, not authorization to relax thresholds or train on test."))
 
-def context_suite(plan,out,reviews):
+def context_suite(plan,out,reviews,acquisition_python=None):
     if reviews is None:raise ValueError("Verified human review bundle required")
     bundle=read(reviews)
     contexts=validated_contexts(plan,bundle["reviewer_1"],bundle["reviewer_2"],bundle["adjudication"])
@@ -163,7 +163,7 @@ def context_suite(plan,out,reviews):
     condition_file=out/"verified_context_conditions.json"
     save(condition_file,dict(geometry_only={k:None for k in contexts},verified_context=contexts,shuffled_context=shuffled))
     rows=[r for r in plan["files"] if r["pilot_id"] in contexts]
-    inputs=acquire(rows,out)
+    inputs=acquire(rows,out,acquisition_python)
     with ThreadPoolExecutor(max_workers=8) as pool:
         list(pool.map(lambda r:prepare_one(r,inputs,out/"benchmark",["cadrille","cadreasoner"]),rows))
     from huggingface_hub import snapshot_download
@@ -178,13 +178,15 @@ def main():
     p=argparse.ArgumentParser();p.add_argument("--manifest",type=Path,required=True)
     p.add_argument("--mode",choices=["benchmark","adaptation","context"],default="benchmark")
     p.add_argument("--reviews",type=Path)
+    p.add_argument("--acquisition-python",type=Path,
+                   help="Image Python with boto3; supplied by bootstrap, not a Sagey setting")
     p.add_argument("--out",type=Path,default=Path("/opt/ml/checkpoints/irl-cad-studies"))
     a=p.parse_args();plan=check(read(a.manifest));a.out.mkdir(parents=True,exist_ok=True)
     save(a.out/"study_plan.json",plan)
     try:
-        if a.mode=="benchmark":benchmark_suite(plan,a.out)
-        elif a.mode=="adaptation":adaptation_suite(plan,a.out)
-        else:context_suite(plan,a.out,a.reviews)
+        if a.mode=="benchmark":benchmark_suite(plan,a.out,a.acquisition_python)
+        elif a.mode=="adaptation":adaptation_suite(plan,a.out,a.acquisition_python)
+        else:context_suite(plan,a.out,a.reviews,a.acquisition_python)
     except Exception as exc:
         save(a.out/"study_failure.json",dict(mode=a.mode,error=str(exc),traceback=traceback.format_exc(),time=time.time()))
         raise

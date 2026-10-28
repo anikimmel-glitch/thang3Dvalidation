@@ -112,6 +112,12 @@ Artifacts and analysis
    work. Orchestration success is not full protocol coverage.
 
 Storage
+   Bootstrap checks the image Python's S3 SDK before setup and uses that
+   interpreter in a separate geometry-acquisition process. SDK versions and
+   process logs are retained. The frozen manifests, acquisition byte cap,
+   exact size/CRC/SHA checks and common scoring environment are unchanged.
+   The evaluation interpreter verifies every acquired file again before use.
+   No extra Sagey environment variables or launch settings are required.
    Geometry/model inputs and large outputs stay on Sagey/S3. Only generated
    DeepCAD reference STEP and metadata are uploaded from the laptop; no new
    geometry is downloaded locally. Remote raw-geometry acquisition is also

@@ -57,6 +57,12 @@ def main():
             abi = check_runtime()
             (out / "host_abi.json").write_text(json.dumps(abi, indent=2))
             print(json.dumps(dict(stage=stage, **abi)), flush=True)
+        if task == "studies.run":
+            # The image SDK already reads the S3 manifest below. Keep it in its
+            # own process instead of changing the locked scoring dependencies.
+            run_stage("acquisition_sdk", [sys.executable, "-m", "studies.acquire",
+                                         "--check-runtime"], 120)
+            arguments.extend(["--acquisition-python", sys.executable])
         stage = "temporary_directory"
         temp_access("/tmp")
         # Test the real APT user and install system libraries before large wheels.
