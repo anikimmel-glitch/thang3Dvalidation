@@ -27,6 +27,22 @@ dependency consistency and requires CAD-kernel import and solid construction
 before the tests. The original `v0.2.0-pilot` attempt failed at package
 installation and produced no reconstruction results.
 
+The `v0.2.1-pilot` attempt subsequently exposed a wheel-specific dependency:
+`cadquery-ocp==7.7.2.2b2` requires `vtk==9.2.6`, conflicting with the former
+VTK 9.3.1 pin. It also stopped before reconstruction. `v0.2.2-pilot` aligns VTK
+and installs the full 125-package `requirements-linux.lock.txt` with SHA-256
+verification and wheels only. The complete dependency graph was resolved for
+Linux x86_64, glibc 2.31, and Python 3.11; runtime CAD, renderer, and GPU checks
+remain part of the remote bootstrap and development smoke run.
+
+Regenerate the Linux lock using uv 0.9.7:
+
+```bash
+uv pip compile requirements.txt --python-platform x86_64-manylinux_2_31 \
+  --python-version 3.11 --only-binary :all: --generate-hashes \
+  -o requirements-linux.lock.txt
+```
+
 ```bash
 python -m unittest discover -s tests -v
 python -m evaluation.run --manifest /path/to/pilot.json \

@@ -25,8 +25,9 @@ python=env/"bin/python"
 if not python.exists():
     subprocess.run([conda,"create","-y","-p",str(env),"--override-channels",
         "-c","conda-forge","python=3.11","pip"],check=True,timeout=1200)
-subprocess.run([str(python),"-m","pip","install","--no-cache-dir","-r",
-                str(root/"requirements.txt")],check=True,timeout=2400)
+subprocess.run([str(python),"-m","pip","install","--no-cache-dir",
+                "--only-binary=:all:","--require-hashes","-r",
+                str(root/"requirements-linux.lock.txt")],check=True,timeout=2400)
 subprocess.run([str(python),"-m","pip","check"],check=True,timeout=60)
 if not shutil.which("Xvfb"):
     subprocess.run(["apt-get","update"],check=True,timeout=300)
