@@ -18,3 +18,11 @@ def check_runtime(libc=None):
             "Changing the isolated Python version does not upgrade host glibc."
         )
     return {"libc": name, "version": version, "minimum_glibc": "2.35"}
+
+
+def select_methods(requested, available):
+    """Allow a repaired method to run without repeating an unchanged comparison."""
+    methods = list(available) if requested is None else list(requested)
+    if not methods or len(methods) != len(set(methods)) or any(m not in available for m in methods):
+        raise ValueError("Select distinct known baseline methods")
+    return methods

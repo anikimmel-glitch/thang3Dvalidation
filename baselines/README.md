@@ -55,5 +55,19 @@ All per-subject native/normalized Chamfer, surface/crease F1, normal consistency
 validity and prediction complexity records are saved.
 
 Run `bootstrap.py --task extra-baselines --manifest-s3 s3://.../split_manifest.json`.
+For a targeted repair, append `--method dualbrep_pc` (or `--method cadfit_mesh`);
+the default still runs both. This preserves the same smoke/test subjects,
+scientific gates and per-subject budgets while avoiding reruns of unchanged
+algorithm outcomes. Record each method's original and repaired attempt separately.
+
+DualBrep input uses scalar binary PLY properties. The former ASCII encoding
+loaded each stored normal component as `(N, 1)` in the upstream trimesh reader,
+causing the released loader to construct `(N, 3, 1)` normals and fail before
+inference. Binary PLY preserves the same nine-significant-digit float32 values
+while giving that unchanged loader scalar `(N,)` fields. A canary exercises the
+pinned upstream dataset reader before downloading weights; each actual input
+retains its encoding, point count and checksum. Sampling, normals, normalization,
+checkpoint, resolution, rotations, optimization budget and scoring are unchanged.
+
 Artifacts live in `/opt/ml/checkpoints/irl-cad-extra-baselines`. No checkpoint
 weights or new dataset geometry are downloaded to the laptop.

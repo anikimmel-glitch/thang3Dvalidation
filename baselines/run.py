@@ -22,6 +22,8 @@ from evaluation.aggregate import summarize
 from finetuning.split import validate
 from baselines.setup import LOCK,setup,environment
 from baselines.coordinates import inverse_bbox
+from baselines.pointcloud_input import write_oriented_cloud
+from baselines.runtime import select_methods
 
 
 def child(argv,cwd,dest,env,timeout):
@@ -75,10 +77,7 @@ def one(row,name,runtime,input_root,out,rank):
             # Independent input samples, not the evaluation point sample itself.
             xyz,normals=points(mesh,32768,row["seed"]+200000)
             path=inputs/f'{row["pilot_id"]}.ply'
-            with path.open("w") as f:
-                f.write("ply\nformat ascii 1.0\nelement vertex 32768\n"+
-                        "".join(f"property float {x}\n" for x in ["x","y","z","nx","ny","nz"])+"end_header\n")
-                np.savetxt(f,np.column_stack((xyz,normals)),fmt="%.9g")
+            save(target/"pointcloud_input.json",write_oriented_cloud(path,xyz,normals))
             # Mirror the actual serialized input, avoiding roundoff in transform inversion.
             cloud=trimesh.load(path,process=False)
             save(target/"coordinate_transform.json",inverse_bbox(cloud.vertices,1.8))
@@ -150,6 +149,7 @@ def cohort(rows,name,runtime,args):
 def run(args):
     manifest=read(args.manifest)
     rows=validate(manifest)
+    methods=select_methods(args.methods,LOCK)
     args.out.mkdir(parents=True,exist_ok=True)
     save(args.out/"split_manifest.json",manifest)
     save(args.out/"baselines_lock.json",LOCK)
@@ -162,10 +162,10 @@ def run(args):
     primary=set(manifest["primary_test_ids"])
     test=[r for r in rows if r["pilot_id"] in primary]
     save(args.out/"cohort.json",dict(smoke_ids=[r["pilot_id"] for r in smoke],test_ids=sorted(primary),
-                                    split_sha256=manifest["split_sha256"]))
+                                    split_sha256=manifest["split_sha256"],selected_methods=methods))
     # Setup independently; a failure in one new baseline does not suppress the other.
     results={}
-    for name in LOCK:
+    for name in methods:
         try:
             runtime=setup(name,args.out)
             with ThreadPoolExecutor(max_workers=8) as pool:
@@ -193,6 +193,8 @@ def run(args):
 if __name__=="__main__":
     p=argparse.ArgumentParser()
     p.add_argument("--manifest",type=Path,required=True)
+    p.add_argument("--method",choices=list(LOCK),action="append",dest="methods",
+                   help="Run only named methods for a targeted infrastructure repair; default: both.")
     p.add_argument("--input",type=Path,default=Path("/opt/ml/input/data/training"))
     p.add_argument("--out",type=Path,default=Path("/opt/ml/checkpoints/irl-cad-extra-baselines"))
     run(p.parse_args())

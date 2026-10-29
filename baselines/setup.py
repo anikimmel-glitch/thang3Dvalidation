@@ -71,6 +71,8 @@ def setup(name, out):
     env = environment(prefix,spec["python"])
     command([python,"-m","pip","freeze"],repo,logs/"environment.txt",env,120)
     if name == "dualbrep_pc":
+        command([python,ROOT/"baselines/pointcloud_input.py",repo,logs/"pointcloud_canary"],
+                repo,logs/"pointcloud_canary.log",env,120)
         # Only the two reconstruction weights are extracted; no author test set.
         from huggingface_hub import hf_hub_download
         archive = hf_hub_download(spec["model_id"],"checkpoints.zip",revision=spec["model_revision"])
