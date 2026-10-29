@@ -605,5 +605,5 @@
   ],
   "scope": "Remote replay of saved decoder candidates, no new inference, no protected test data, no original benchmark overwrite.",
   "candidate_selection": "Suspected next candidate inferred from final 13/24 and 19/24 completed progress counts; original serial sequence also replayed if diagnostic time remains.",
-  "limits": "Sandbox hardware and shorter diagnostic time budget differ from benchmark. Isolated candidate RNG history differs from full sequence; full sequence starts from original row seed. No score improvement claims."
+  "limits": "Uses the same p5 cluster path and parent image as the failed benchmark, with a shorter diagnostic time budget and a newly installed dependency environment. Isolated candidate RNG history differs from full sequence; full sequence starts from original row seed. No score improvement claims."
 }

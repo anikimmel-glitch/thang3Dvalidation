@@ -70,7 +70,7 @@ def acquire(client, hit, path):
 
 def main():
     started = time.monotonic()
-    # Leave time for final receipts before the one-hour sandbox stop.
+    # Leave time for final receipts before the one-hour diagnostic job limit.
     deadline = started + 3450
     OUT.mkdir(parents=True, exist_ok=True)
     source_snapshot(ROOT, OUT)
