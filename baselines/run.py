@@ -24,20 +24,27 @@ from baselines.setup import LOCK,setup,environment
 from baselines.coordinates import inverse_bbox
 from baselines.pointcloud_input import write_oriented_cloud
 from baselines.runtime import select_methods
+from baselines.rejected_candidates import all_candidates_rejected
 
 
 def child(argv,cwd,dest,env,timeout):
     # Kill the full process group on timeout, including CADFit's worker pool.
+    started=time.monotonic()
+    timed_out=False
     with dest.open("w") as stream:
         p=subprocess.Popen(list(map(str,argv)),cwd=cwd,env=env,stdout=stream,
                            stderr=subprocess.STDOUT,start_new_session=True)
         try:
             p.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
+            timed_out=True
             os.killpg(p.pid,signal.SIGKILL)
             p.wait()
-            return "timeout"
-    return "ok" if p.returncode==0 else "failed"
+    save(dest.with_suffix(".execution.json"),dict(
+        command=list(map(str,argv)),returncode=p.returncode,
+        signal=signal.Signals(-p.returncode).name if p.returncode<0 else None,
+        timeout=timed_out,timeout_seconds=timeout,elapsed_seconds=time.monotonic()-started))
+    return "timeout" if timed_out else "ok" if p.returncode==0 else "failed"
 
 
 def one(row,name,runtime,input_root,out,rank):
@@ -87,6 +94,15 @@ def one(row,name,runtime,input_root,out,rank):
                 [python,repo/"rebuild.py","--input",work/"recon","--out",work/"output"],
                 [python,repo/"postprocess.py","--input",work/"output","--serial"]]
         for i,command in enumerate(commands):
+            if name=="dualbrep_pc" and i==2:
+                rejected=all_candidates_rejected(
+                    work/"output",target/"stage_1.log",row["pilot_id"],
+                    read(target/"stage_1.execution.json"))
+                if rejected is not None:
+                    save(target/"candidate_rejection.json",rejected)
+                    record_failure(row,target/"metrics.json","invalid_geometry",
+                                   "All 24 decoded candidates rejected: fewer than two usable faces")
+                    return read(target/"metrics.json")
             remaining=spec["timeout_seconds"]-(time.monotonic()-started)
             command=[command[0],ROOT/"baselines/invoke.py",str(row["seed"]),*command[1:]]
             status=child(command,repo,target/f"stage_{i}.log",env,max(.1,remaining))

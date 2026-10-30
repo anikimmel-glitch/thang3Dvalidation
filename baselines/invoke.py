@@ -1,8 +1,12 @@
 """Seed an upstream script without editing its released inference implementation."""
+import faulthandler
 import random
+import resource
 import runpy
 from pathlib import Path
 import sys
+resource.setrlimit(resource.RLIMIT_CORE,(0,0))
+faulthandler.enable(all_threads=True)
 import numpy as np
 
 seed=int(sys.argv[1])

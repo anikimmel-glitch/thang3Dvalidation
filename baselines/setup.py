@@ -50,6 +50,10 @@ def setup(name, out):
     revision = subprocess.check_output(["git","rev-parse","HEAD"],cwd=repo,text=True).strip()
     if revision != spec["commit"]:
         raise RuntimeError("Upstream revision mismatch")
+    if name == "dualbrep_pc":
+        from diagnostics.null_face_guard import apply
+        save(logs/"null_face_guard_patch.json", apply(repo))
+        shutil.copyfile(repo/"brep_post/utils.py", logs/"patched_upstream_utils.py")
     requirement = repo/"requirements.txt"
     req_sha = hashlib.sha256(requirement.read_bytes()).hexdigest()
     if spec.get("requirements_sha256") and spec["requirements_sha256"] != req_sha:
