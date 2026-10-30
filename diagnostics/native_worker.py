@@ -1,5 +1,6 @@
 """Instrument the pinned upstream postprocessor without changing its CAD operations."""
 import argparse
+from contextlib import nullcontext
 import faulthandler
 import importlib.util
 import json
@@ -16,6 +17,8 @@ def main():
     p.add_argument("--input", type=Path, required=True)
     p.add_argument("--seed", type=int, required=True)
     p.add_argument("--candidate", help="One suspected next candidate; omit for original serial sequence.")
+    p.add_argument("--capture-seam-state", action="store_true",
+                   help="Retain the face/wires before the unchanged native seam operation.")
     args = p.parse_args()
     faulthandler.enable(all_threads=True)
     faulthandler.dump_traceback_later(120, repeat=True)
@@ -50,9 +53,16 @@ def main():
         candidate = args.input / "tmp" / args.candidate / "post.npz"
         assert candidate.is_file()
         # Match the upstream serial defaults, including its per-candidate random seed 0.
-        result = module.build_one(candidate, str(args.repository), 0, False, True, 200, seed=0)
+        if args.capture_seam_state:
+            from seam_capture import SeamCapture
+            observer = SeamCapture(args.repository / "brep_post/utils.py", args.input / "seam_state")
+        else:
+            observer = nullcontext()
+        with observer:
+            result = module.build_one(candidate, str(args.repository), 0, False, True, 200, seed=0)
         (args.input / "single_candidate_result.json").write_text(json.dumps(result))
     else:
+        assert not args.capture_seam_state, "State capture requires one isolated candidate."
         sys.argv = [str(args.repository / "postprocess.py"), "--input", str(args.input), "--serial"]
         module.main()
     faulthandler.cancel_dump_traceback_later()

@@ -69,7 +69,7 @@ def acquire(client, hit, path):
                 etag=metadata["ETag"], last_modified=hit["last_modified"])
 
 
-def main():
+def main(capture_seam_state=False):
     started = time.monotonic()
     # Leave time for final receipts before the one-hour diagnostic job limit.
     deadline = started + 3450
@@ -78,6 +78,15 @@ def main():
     retention = Retention(OUT, interval=120)
     retention.start()
     plan = read(ROOT / "diagnostics/native_plan.json")
+    if capture_seam_state:
+        for subject in plan["subjects"]:
+            subject["candidates"] = [h for h in subject["candidates"]
+                                     if Path(h["relative_key"]).parts[1]
+                                     == subject["suspected_next_candidate"]]
+            assert len(subject["candidates"]) == 1
+        plan["capture_seam_state"] = True
+        plan["original_plan_sha256"] = hashlib.sha256(
+            (ROOT / "diagnostics/native_plan.json").read_bytes()).hexdigest()
     save(OUT / "plan.json", plan)
     stage = "initializing"
     try:
@@ -146,7 +155,9 @@ def main():
         env.update(PYTHONUNBUFFERED="1", OPENBLAS_NUM_THREADS="1", OMP_NUM_THREADS="1")
         # CPU CAD work: identical upstream --serial settings, without changing CUDA visibility.
         results = []
-        for mode in ("suspected_candidate", "original_serial_sequence"):
+        modes = ("seam_state",) if capture_seam_state else (
+            "suspected_candidate", "original_serial_sequence")
+        for mode in modes:
             if deadline-time.monotonic() < 90:
                 break
             stage = mode
@@ -158,9 +169,11 @@ def main():
                 shutil.copytree(OUT / "inputs" / part, work)
                 command = [python, ROOT / "diagnostics/native_worker.py",
                            "--repository", repo, "--input", work, "--seed", str(subject["seed"])]
-                if mode == "suspected_candidate":
+                if mode in ("suspected_candidate", "seam_state"):
                     command += ["--candidate", subject["suspected_next_candidate"]]
-                timeout = min(600 if mode == "suspected_candidate" else 1800,
+                if mode == "seam_state":
+                    command.append("--capture-seam-state")
+                timeout = min(600 if mode in ("suspected_candidate", "seam_state") else 1800,
                               deadline-time.monotonic()-30)
                 if timeout <= 0:
                     raise TimeoutError("Replay deadline exhausted")
@@ -172,6 +185,7 @@ def main():
             save(OUT / "replay_results.json", results)
         save(OUT / "completed.json", dict(time=time.time(), results=results,
              models_inferred=0, benchmark_scores_written=False, heldout_used=False,
+             capture_seam_state=capture_seam_state,
              interpretation="Diagnostic replay only. Candidate isolation and shorter diagnostic time budgets "
                             "do not replace original benchmark outcomes. A successful isolated candidate "
                             "does not disprove a failure involving accumulated process state."))
