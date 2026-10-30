@@ -6,10 +6,33 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
+from diagnostics import native_bootstrap
 from diagnostics.native_bootstrap import acquire, process
 
 
 class NativeDiagnosticTests(unittest.TestCase):
+    def test_temp_probe_failure_is_retained_before_candidate_download_or_apt(self):
+        with tempfile.TemporaryDirectory() as folder:
+            out = Path(folder)
+            with patch.object(native_bootstrap, "OUT", out), \
+                 patch.object(native_bootstrap, "source_snapshot"), \
+                 patch.object(native_bootstrap, "Retention") as retention, \
+                 patch.object(native_bootstrap, "temp_access",
+                              side_effect=RuntimeError("APT probe denied")) as probe, \
+                 patch.object(native_bootstrap, "acquire") as acquire_mock, \
+                 patch.object(native_bootstrap, "process") as process_mock:
+                with self.assertRaisesRegex(RuntimeError, "APT probe denied"):
+                    native_bootstrap.main()
+                probe.assert_called_once_with("/tmp")
+                acquire_mock.assert_not_called()
+                process_mock.assert_not_called()
+                retention.return_value.finish.assert_called_once()
+            failure = json.loads((out / "failure.json").read_text())
+            self.assertEqual(failure["stage"], "temporary_directory")
+            self.assertFalse(failure["benchmark_scores_written"])
+            self.assertFalse((out / "temporary_directory.json").exists())
+
     def test_worker_preserves_upstream_serial_defaults(self):
         with tempfile.TemporaryDirectory() as folder:
             p = Path(folder)

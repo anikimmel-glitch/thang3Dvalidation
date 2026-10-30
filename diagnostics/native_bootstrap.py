@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from evaluation.common import read, save
 from evaluation.retention import Retention, source_snapshot
+from evaluation.startup import temp_access
 from baselines.setup import environment
 
 OUT = Path("/opt/ml/checkpoints/dualbrep-native-diagnostic")
@@ -84,6 +85,12 @@ def main():
         assert {r["part_id"] for r in plan["subjects"]} == {"f00012", "f00122"}
         assert all(r["split"] == "train" for r in plan["subjects"])
         assert sum(h["size"] for r in plan["subjects"] for h in r["candidates"]) < 30_000_000
+        stage = "temporary_directory"
+        save(OUT / "status.json", dict(stage=stage, time=time.time(), benchmark=False))
+        # The image's root-writable /tmp can still reject the _apt sandbox user.
+        temp_access("/tmp")
+        save(OUT / "temporary_directory.json", dict(
+            path="/tmp", sandbox_user="_apt", access_probe_passed=True, time=time.time()))
         repo = Path("/tmp/dualbrep-native-diagnostic/source")
         prefix = Path("/tmp/dualbrep-native-diagnostic/env")
         repo.parent.mkdir(exist_ok=True)
