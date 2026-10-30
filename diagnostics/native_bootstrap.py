@@ -69,7 +69,8 @@ def acquire(client, hit, path):
                 etag=metadata["ETag"], last_modified=hit["last_modified"])
 
 
-def main(capture_seam_state=False):
+def main(capture_seam_state=False, null_face_guard=False):
+    assert not (capture_seam_state and null_face_guard)
     started = time.monotonic()
     # Leave time for final receipts before the one-hour diagnostic job limit.
     deadline = started + 3450
@@ -78,6 +79,8 @@ def main(capture_seam_state=False):
     retention = Retention(OUT, interval=120)
     retention.start()
     plan = read(ROOT / "diagnostics/native_plan.json")
+    if null_face_guard:
+        plan["null_face_guard"] = True
     if capture_seam_state:
         for subject in plan["subjects"]:
             subject["candidates"] = [h for h in subject["candidates"]
@@ -138,6 +141,12 @@ def main(capture_seam_state=False):
         setup_step("git_checkout", ["git", "-C", repo, "checkout", "--detach", "FETCH_HEAD"], 60)
         actual = subprocess.check_output(["git", "-C", repo, "rev-parse", "HEAD"], text=True).strip()
         assert actual == plan["upstream_commit"]
+        if null_face_guard:
+            from diagnostics.null_face_guard import apply
+            stage = "apply_null_face_guard"
+            save(OUT / "status.json", dict(stage=stage, time=time.time(), benchmark=False))
+            save(OUT / "null_face_guard_patch.json", apply(repo))
+            shutil.copyfile(repo / "brep_post/utils.py", OUT / "patched_upstream_utils.py")
         requirement = repo / "requirements.txt"
         assert hashlib.sha256(requirement.read_bytes()).hexdigest() == plan["requirements_sha256"]
         conda = shutil.which("conda")
@@ -155,8 +164,9 @@ def main(capture_seam_state=False):
         env.update(PYTHONUNBUFFERED="1", OPENBLAS_NUM_THREADS="1", OMP_NUM_THREADS="1")
         # CPU CAD work: identical upstream --serial settings, without changing CUDA visibility.
         results = []
-        modes = ("seam_state",) if capture_seam_state else (
-            "suspected_candidate", "original_serial_sequence")
+        modes = (("seam_state",) if capture_seam_state else
+                 ("guarded_candidate", "guarded_serial_sequence") if null_face_guard else
+                 ("suspected_candidate", "original_serial_sequence"))
         for mode in modes:
             if deadline-time.monotonic() < 90:
                 break
@@ -169,16 +179,38 @@ def main(capture_seam_state=False):
                 shutil.copytree(OUT / "inputs" / part, work)
                 command = [python, ROOT / "diagnostics/native_worker.py",
                            "--repository", repo, "--input", work, "--seed", str(subject["seed"])]
-                if mode in ("suspected_candidate", "seam_state"):
+                isolated = mode in ("suspected_candidate", "seam_state", "guarded_candidate")
+                if isolated:
                     command += ["--candidate", subject["suspected_next_candidate"]]
                 if mode == "seam_state":
                     command.append("--capture-seam-state")
-                timeout = min(600 if mode in ("suspected_candidate", "seam_state") else 1800,
+                timeout = min(600 if isolated else 1800,
                               deadline-time.monotonic()-30)
                 if timeout <= 0:
                     raise TimeoutError("Replay deadline exhausted")
-                return dict(part_id=part, mode=mode, **process(
-                    command, repo, work / "postprocess.log", env, timeout, work / "execution.json"))
+                execution = process(command, repo, work / "postprocess.log", env, timeout,
+                                    work / "execution.json")
+                extra = {}
+                if null_face_guard:
+                    from diagnostics.null_face_guard import MARKER
+                    events, malformed, hits = [], 0, 0
+                    with (work / "postprocess.log").open(errors="replace") as stream:
+                        for line in stream:
+                            hits += MARKER in line
+                            token = '{"event": "candidate_'
+                            if token in line:
+                                try:
+                                    event, _ = json.JSONDecoder().raw_decode(line[line.index(token):])
+                                    events.append(event)
+                                except ValueError:
+                                    malformed += 1
+                    extra["null_face_guard_hits"] = hits
+                    save(work / "candidate_coverage.json", dict(
+                        events=events, malformed_event_lines=malformed,
+                        null_face_guard_hits=hits, execution=execution,
+                        scope="Parsed upstream candidate-return events; not independently "
+                              "validated geometry or benchmark scores. Full log retained."))
+                return dict(part_id=part, mode=mode, **execution, **extra)
 
             with ThreadPoolExecutor(max_workers=2) as pool:
                 results.extend(pool.map(replay, plan["subjects"]))
@@ -186,6 +218,7 @@ def main(capture_seam_state=False):
         save(OUT / "completed.json", dict(time=time.time(), results=results,
              models_inferred=0, benchmark_scores_written=False, heldout_used=False,
              capture_seam_state=capture_seam_state,
+             null_face_guard=null_face_guard,
              interpretation="Diagnostic replay only. Candidate isolation and shorter diagnostic time budgets "
                             "do not replace original benchmark outcomes. A successful isolated candidate "
                             "does not disprove a failure involving accumulated process state."))
