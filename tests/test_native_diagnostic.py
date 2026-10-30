@@ -57,13 +57,20 @@ class NativeDiagnosticTests(unittest.TestCase):
                 "    (root/'fixture_result.json').write_text(json.dumps(result))\n")
             env = dict(os.environ, PYTHONPATH=str(repo))
             worker = Path(__file__).resolve().parents[1] / "diagnostics/native_worker.py"
-            result = subprocess.run([sys.executable, worker, "--repository", repo,
-                                     "--input", work, "--seed", "20271040"],
-                                    env=env, capture_output=True, text=True, timeout=10)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(json.loads((work/"fixture_result.json").read_text())[0], "f00012_13")
-            self.assertIn('"event": "candidate_started"', result.stdout)
-            self.assertIn('"event": "candidate_finished"', result.stdout)
+            for options in ([], ["--fatal-only-traceback"],
+                            ["--fatal-only-traceback", "--candidate", "f00012_13"]):
+                result = subprocess.run([sys.executable, worker, "--repository", repo,
+                                         "--input", work, "--seed", "20271040", *options],
+                                        env=env, capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                filename = "single_candidate_result.json" if "--candidate" in options else "fixture_result.json"
+                self.assertEqual(json.loads((work/filename).read_text())[0], "f00012_13")
+                self.assertIn('"event": "candidate_started"', result.stdout)
+                self.assertIn('"event": "candidate_finished"', result.stdout)
+                if options:
+                    policy = json.loads((work/"traceback_policy.json").read_text())
+                    self.assertFalse(policy["periodic_traceback_enabled"])
+                    self.assertEqual((work/"fatal_traceback.log").read_bytes(), b"")
 
     def test_nonzero_exit_is_preserved(self):
         with tempfile.TemporaryDirectory() as folder:

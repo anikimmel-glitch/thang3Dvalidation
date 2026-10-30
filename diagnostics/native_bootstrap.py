@@ -69,7 +69,22 @@ def acquire(client, hit, path):
                 etag=metadata["ETag"], last_modified=hit["last_modified"])
 
 
-def main(capture_seam_state=False, null_face_guard=False):
+def focus_guard_failure(plan):
+    """Select the newly observed train failure without rewriting the original plan."""
+    plan["subjects"] = [r for r in plan["subjects"] if r["part_id"] == "f00122"]
+    assert len(plan["subjects"]) == 1 and plan["subjects"][0]["split"] == "train"
+    subject = plan["subjects"][0]
+    assert len(subject["candidates"]) == 24
+    assert any(Path(h["relative_key"]).parts[1] == "f00122_17" for h in subject["candidates"])
+    subject["suspected_next_candidate"] = "f00122_17"
+    plan["focused_guard_failure"] = True
+    plan["fatal_only_traceback"] = True
+    return plan
+
+
+def main(capture_seam_state=False, null_face_guard=False, focused_guard_failure=False):
+    if focused_guard_failure:
+        assert null_face_guard and not capture_seam_state
     assert not (capture_seam_state and null_face_guard)
     started = time.monotonic()
     # Leave time for final receipts before the one-hour diagnostic job limit.
@@ -79,6 +94,10 @@ def main(capture_seam_state=False, null_face_guard=False):
     retention = Retention(OUT, interval=120)
     retention.start()
     plan = read(ROOT / "diagnostics/native_plan.json")
+    if focused_guard_failure:
+        plan = focus_guard_failure(plan)
+        plan["original_plan_sha256"] = hashlib.sha256(
+            (ROOT / "diagnostics/native_plan.json").read_bytes()).hexdigest()
     if null_face_guard:
         plan["null_face_guard"] = True
     if capture_seam_state:
@@ -94,7 +113,8 @@ def main(capture_seam_state=False, null_face_guard=False):
     stage = "initializing"
     try:
         assert plan["development_only"] and not plan["benchmark_scores_written"]
-        assert {r["part_id"] for r in plan["subjects"]} == {"f00012", "f00122"}
+        assert {r["part_id"] for r in plan["subjects"]} == (
+            {"f00122"} if focused_guard_failure else {"f00012", "f00122"})
         assert all(r["split"] == "train" for r in plan["subjects"])
         assert sum(h["size"] for r in plan["subjects"] for h in r["candidates"]) < 30_000_000
         stage = "temporary_directory"
@@ -184,6 +204,8 @@ def main(capture_seam_state=False, null_face_guard=False):
                     command += ["--candidate", subject["suspected_next_candidate"]]
                 if mode == "seam_state":
                     command.append("--capture-seam-state")
+                if focused_guard_failure:
+                    command.append("--fatal-only-traceback")
                 timeout = min(600 if isolated else 1800,
                               deadline-time.monotonic()-30)
                 if timeout <= 0:
@@ -219,6 +241,7 @@ def main(capture_seam_state=False, null_face_guard=False):
              models_inferred=0, benchmark_scores_written=False, heldout_used=False,
              capture_seam_state=capture_seam_state,
              null_face_guard=null_face_guard,
+             focused_guard_failure=focused_guard_failure,
              interpretation="Diagnostic replay only. Candidate isolation and shorter diagnostic time budgets "
                             "do not replace original benchmark outcomes. A successful isolated candidate "
                             "does not disprove a failure involving accumulated process state."))

@@ -1,7 +1,6 @@
 """Instrument the pinned upstream postprocessor without changing its CAD operations."""
 import argparse
 from contextlib import nullcontext
-import faulthandler
 import importlib.util
 import json
 from pathlib import Path
@@ -19,9 +18,15 @@ def main():
     p.add_argument("--candidate", help="One suspected next candidate; omit for original serial sequence.")
     p.add_argument("--capture-seam-state", action="store_true",
                    help="Retain the face/wires before the unchanged native seam operation.")
+    p.add_argument("--fatal-only-traceback", action="store_true",
+                   help="Write fatal traces to a dedicated file and disable periodic dumps.")
     args = p.parse_args()
-    faulthandler.enable(all_threads=True)
-    faulthandler.dump_traceback_later(120, repeat=True)
+    from traceback_output import traceback_output
+    with traceback_output(args.input, args.fatal_only_traceback):
+        run(args)
+
+
+def run(args):
     import numpy as np
     import torch
     random.seed(args.seed)
@@ -65,7 +70,6 @@ def main():
         assert not args.capture_seam_state, "State capture requires one isolated candidate."
         sys.argv = [str(args.repository / "postprocess.py"), "--input", str(args.input), "--serial"]
         module.main()
-    faulthandler.cancel_dump_traceback_later()
 
 
 if __name__ == "__main__":
