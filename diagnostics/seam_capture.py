@@ -26,6 +26,33 @@ def capture_occ_state(frame, directory):
     local = frame.f_locals
     face = local["face_fixer"].Face()
     surface = local["geom_face"]
+    face_is_null = face is None or bool(face.IsNull())
+    result = local["face_fixer"].Result()
+    result_is_null = result is None or bool(result.IsNull())
+    status_path = directory / "status.json"
+    inspection = dict(
+        capture_sequence=json.loads(status_path.read_text())["sequence"]
+        if status_path.exists() else None,
+        surface_type=surface.DynamicType().Name(),
+        u_periodic=bool(surface.IsUPeriodic()), v_periodic=bool(surface.IsVPeriodic()),
+        face_is_null=face_is_null,
+        face_wrapper_is_none=face is None,
+        face_tolerance=None if face_is_null else float(BRep_Tool.Tolerance(face)),
+        result_is_null=result_is_null,
+        result_wrapper_is_none=result is None,
+        result_shape_type=None if result_is_null else int(result.ShapeType()),
+        connected_tolerance=float(local["connected_tolerance"]),
+        face_edges=len(local["face_edges"]), original_wires=len(local["wire_list"]),
+        fixed_wires=len(local["fixed_wire_list"]),
+        inspection_scope="Read-only attributes; no healing or validity test performed.")
+    # Retain inspection before any native export, which can itself fail.
+    atomic_json(directory / "capture_inspection.json", inspection)
+    if face_is_null:
+        # BRep_Builder.Add on a null face is unsafe. Let the original seam call
+        # run unchanged after recording the null state, without exporting it.
+        return dict(**inspection, state_brep=None, bytes=0, sha256=None,
+                    export_skipped_reason="null_fixer_face",
+                    prior_brep_is_current_state=False)
     # Compound child 0 is the fixer's face; remaining children are its fixed input wires.
     compound = TopoDS_Compound()
     builder = BRep_Builder()
@@ -43,15 +70,10 @@ def capture_occ_state(frame, directory):
             digest.update(chunk)
     temporary.replace(path)
     return dict(
+        **inspection,
         state_brep=path.name, bytes=path.stat().st_size, sha256=digest.hexdigest(),
         compound_layout="child 0: fixer face; following children: fixed input wires",
-        surface_type=surface.DynamicType().Name(),
-        u_periodic=bool(surface.IsUPeriodic()), v_periodic=bool(surface.IsVPeriodic()),
-        face_is_null=bool(face.IsNull()), face_tolerance=float(BRep_Tool.Tolerance(face)),
-        connected_tolerance=float(local["connected_tolerance"]),
-        face_edges=len(local["face_edges"]), original_wires=len(local["wire_list"]),
-        fixed_wires=len(local["fixed_wire_list"]),
-        inspection_scope="Export and read-only attributes; no healing or validity test performed.")
+        prior_brep_is_current_state=True)
 
 
 class SeamCapture:
@@ -99,6 +121,7 @@ class SeamCapture:
                           operation="face_fixer.FixMissingSeam()",
                           benchmark=False, cad_operations_changed=False)
             self.event(stage="capturing_state", **record)
+            (self.directory / "capture_inspection.json").unlink(missing_ok=True)
             try:
                 state = self.capture(frame, self.directory)
             except Exception as exc:
