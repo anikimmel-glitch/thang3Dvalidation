@@ -101,6 +101,20 @@ def main(a):
     py=runtime["python"];repo=runtime["repository"]
     command([py,"-m","baselines.cadfit_export_canary","--repo",repo,
              "--out",a.out/"export_canary"],ROOT,a.out/"export_canary.log",env,300)
+    # Validate the optional filter runtime before the long reconstruction cohorts.
+    progress(a.out,"filter_setup")
+    command([py,"-m","pip","install","--no-cache-dir","torch==2.5.1",
+             "torchvision==0.20.1","pyvista==0.46.3","Pillow==11.3.0",
+             "huggingface-hub==0.36.2","wandb==0.22.3"],repo,a.out/"filter_pip.log",env,3600)
+    command([py,"-m","pip","check"],repo,a.out/"filter_pip_check.log",env,120)
+    env=environment(runtime["environment_prefix"],"3.10")
+    env["PYTHONPATH"]=str(ROOT)
+    command([py,"-m","unittest","tests.test_cadfit_training","-v"],
+            ROOT,a.out/"filter_training_test.log",env,300)
+    model_dir=a.out/"filter_weights";model_dir.mkdir(exist_ok=True)
+    command([py,"-m","baselines.cadfit_weights","--repo",repo,"--out",model_dir],
+            ROOT,a.out/"filter_weights.log",env,1800)
+    model=model_dir/"model_mlp_med.pt";norm=model_dir/"normalization.npz"
     progress(a.out,"prepare_references")
     wanted={r["pilot_id"]:r for rows in cohorts.values() for r in rows}
     with ThreadPoolExecutor(max_workers=8) as pool:
@@ -130,18 +144,6 @@ def main(a):
             output=str(root/"work/output"/r["pilot_id"]),
             mesh=str(root/"work/input"/(r["pilot_id"]+".stl"))))
     save(a.out/"supervision_index.json",index)
-    progress(a.out,"filter_setup")
-    command([py,"-m","pip","install","--no-cache-dir","torch==2.5.1",
-             "torchvision==0.20.1","pyvista==0.46.3","Pillow==11.3.0",
-             "huggingface-hub==0.36.2","wandb==0.22.3"],repo,a.out/"filter_pip.log",env,3600)
-    command([py,"-m","pip","check"],repo,a.out/"filter_pip_check.log",env,120)
-    env=environment(runtime["environment_prefix"],"3.10")
-    env["PYTHONPATH"]=str(ROOT)
-    model_dir=a.out/"filter_weights";model_dir.mkdir(exist_ok=True)
-    # Resolve one immutable HF commit for this job, then keep exact local copies.
-    command([py,"-m","baselines.cadfit_weights","--repo",repo,"--out",model_dir],
-            ROOT,a.out/"filter_weights.log",env,1800)
-    model=model_dir/"model_mlp_med.pt";norm=model_dir/"normalization.npz"
     filter_out=a.out/"filter_training";filter_out.mkdir(exist_ok=True)
     progress(a.out,"filter_features")
     common=[py,"-m","baselines.cadfit_filter_train"]

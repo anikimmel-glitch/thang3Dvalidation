@@ -114,19 +114,20 @@ def train(a):
         if min(int((y==0).sum()),int((y==1).sum()))<20:
             raise RuntimeError("Insufficient measured positive/negative examples: "+split)
         arrays[split]=(x,y,np.asarray(weights),np.asarray(groups))
-    wb=None
+    wandb_run=None
     if os.environ.get("WANDB_API_KEY"):
         import wandb
-        wb=wandb.init(project="thangs-cadfit-filter",entity="tri",
+        wandb_run=wandb.init(project="thangs-cadfit-filter",entity="tri",
                       name=os.environ.get("TRAINING_JOB_NAME","cadfit-filter"),
                       dir=str(a.out),config=dict(epochs=10,lr=1e-5,
                         backbone_frozen=True,label="measured_candidate_viability",
                         train_sources=len(np.unique(arrays["train"][3])),
                         validation_sources=len(np.unique(arrays["validation"][3]))))
-        write(a.out/"wandb_identity.json",dict(url=wb.url,id=wb.id))
+        write(a.out/"wandb_identity.json",dict(url=wandb_run.url,id=wandb_run.id))
     optimizer=torch.optim.AdamW(model.parameters(),lr=1e-5,weight_decay=.01)
     history=[];best=None
     for epoch in range(11):
+        train_loss=None
         if epoch:
             model.train()
             x,y,w,_=arrays["train"]
@@ -135,12 +136,13 @@ def train(a):
             for idx in np.array_split(order,max(1,(len(order)+255)//256)):
                 xb=torch.tensor(x[idx],device=device)
                 yb=torch.tensor(y[idx],dtype=torch.float32,device=device)
-                wb=torch.tensor(w[idx]/w.mean(),dtype=torch.float32,device=device)
+                batch_weights=torch.tensor(w[idx]/w.mean(),dtype=torch.float32,device=device)
                 optimizer.zero_grad()
                 loss=(torch.nn.functional.binary_cross_entropy_with_logits(
-                    model(xb).squeeze(-1),yb,reduction="none")*wb).mean()
+                    model(xb).squeeze(-1),yb,reduction="none")*batch_weights).mean()
                 loss.backward();torch.nn.utils.clip_grad_norm_(model.parameters(),1.0)
                 optimizer.step();loss_sum+=float(loss)
+            train_loss=loss_sum/max(1,(len(order)+255)//256)
         model.eval()
         x,y,_,groups=arrays["validation"];pred=[]
         with torch.no_grad():
@@ -154,11 +156,15 @@ def train(a):
         if not group_ap:raise RuntimeError("No validation source with both classes")
         result=dict(epoch=epoch,source_macro_ap=float(np.mean(group_ap)),**metrics(y,pred,threshold))
         history.append(result)
-        if wb:wb.log({"validation/"+k:v for k,v in result.items()},step=epoch)
+        if wandb_run is not None:
+            telemetry={"validation/"+k:v for k,v in result.items()}
+            if train_loss is not None:telemetry["train/loss"]=train_loss
+            wandb_run.log(telemetry,step=epoch)
         np.savez_compressed(a.out/f"validation_epoch_{epoch}.npz",y=y,p=pred,groups=groups)
         payload={**ckpt,"state_dict":{k:v.detach().cpu() for k,v in model.state_dict().items()}}
         torch.save(payload,a.out/f"filter_epoch_{epoch}.pt")
         torch.save(dict(optimizer=optimizer.state_dict(),torch_rng=torch.get_rng_state(),
+                        cuda_rng=torch.cuda.get_rng_state_all() if torch.cuda.is_available() else [],
                         numpy_rng=np.random.get_state(),python_rng=random.getstate()),
                    a.out/f"training_state_epoch_{epoch}.pt")
         # Keep a genuine learned endpoint, even if epoch-zero remains the deployment choice.
@@ -170,7 +176,7 @@ def train(a):
         deployment_epoch=selected,selection_metric="source_macro_validation_proxy_ap",
         history=history,test_used=False,backbone_frozen=True,normalization_frozen=True,
         label_limitation="Candidate viability proxy; not ground-truth construction sketches"))
-    if wb:wb.finish()
+    if wandb_run is not None:wandb_run.finish()
 
 if __name__=="__main__":
     p=argparse.ArgumentParser()
