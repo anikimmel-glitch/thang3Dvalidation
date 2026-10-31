@@ -47,7 +47,10 @@ def child(argv,cwd,dest,env,timeout):
     return "timeout" if timed_out else "ok" if p.returncode==0 else "failed"
 
 
-def one(row,name,runtime,input_root,out,rank):
+def one(row,name,runtime,input_root,out,rank,options=None):
+    options = options or {}
+    if options and name != "cadfit_mesh":
+        raise ValueError("CADFit study options cannot change another baseline")
     target=out/"predictions"/name/row["pilot_id"]
     target.mkdir(parents=True,exist_ok=True)
     if (target/"metrics.json").exists():
@@ -56,7 +59,9 @@ def one(row,name,runtime,input_root,out,rank):
     if not (prepared/"preparation.json").exists():
         record_failure(row,target/"metrics.json","reference_preparation_failed")
         return read(target/"metrics.json")
-    spec=LOCK[name]
+    spec={**LOCK[name]}
+    if options:
+        spec["timeout_seconds"] = options.get("timeout_seconds", spec["timeout_seconds"])
     repo=Path(runtime["repository"])
     python=Path(runtime["python"])
     env=environment(runtime["environment_prefix"],spec["python"])
@@ -80,6 +85,12 @@ def one(row,name,runtime,input_root,out,rank):
                  "--fillet-chamfer","--keep-history"],
                 [python,ROOT/"baselines/export_cadfit.py",repo,
                  work/"output"/row["pilot_id"]/"best_greedy_parallel_iterative.py",target/"raw.step"]]
+            if options.get("fuse_export"):
+                commands[1] += ["--fuse", "--mesh",
+                    work/"output"/row["pilot_id"]/"best_greedy_parallel_iterative.stl"]
+            if options.get("filter_model"):
+                commands[0] += ["--filter-sketches", "--filter-model", options["filter_model"],
+                                "--filter-norm", options["filter_norm"]]
         else:
             # Independent input samples, not the evaluation point sample itself.
             xyz,normals=points(mesh,32768,row["seed"]+200000)
@@ -137,7 +148,7 @@ def one(row,name,runtime,input_root,out,rank):
         save(target/"runtime.json",dict(seconds=time.monotonic()-started,method=name,
              input=spec["input"],procedure=spec["procedure"],budget_seconds=spec["timeout_seconds"],
              seed=row["seed"],bitwise_reproducible=False,
-             source_text_or_topology_supplied=False))
+             source_text_or_topology_supplied=False,study_options=options))
 
 
 def cohort(rows,name,runtime,args):

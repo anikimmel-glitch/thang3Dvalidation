@@ -20,14 +20,15 @@ def main():
     if "--task" in arguments:
         index = arguments.index("--task")
         selected = arguments[index+1]
-        if selected not in ("finetuning", "extra-baselines", "cvpr-studies"):
+        if selected not in ("finetuning", "extra-baselines", "cvpr-studies", "cadfit-study"):
             raise ValueError("Unknown bootstrap task")
         task = {"finetuning": "finetuning.train", "extra-baselines": "baselines.run",
-                "cvpr-studies": "studies.run"}[selected]
+                "cvpr-studies": "studies.run", "cadfit-study": "baselines.cadfit_study"}[selected]
         del arguments[index:index+2]
     out = Path("/opt/ml/checkpoints") / {
         "finetuning.train": "irl-cad-finetuning",
         "baselines.run": "irl-cad-extra-baselines",
+        "baselines.cadfit_study": "irl-cad-cadfit-study",
         "studies.run": "irl-cad-studies",
         "evaluation.run": "irl-cad-pilot"}[task]
     out.mkdir(parents=True, exist_ok=True)
@@ -51,7 +52,7 @@ def main():
         result.check_returncode()
 
     try:
-        if task == "baselines.run":
+        if task in ("baselines.run","baselines.cadfit_study"):
             stage = "extra_baselines_host_abi"
             from baselines.runtime import check_runtime
             abi = check_runtime()
@@ -145,6 +146,14 @@ def main():
         print(json.dumps(report), flush=True)
         raise
     finally:
+        if task == "baselines.cadfit_study":
+            # Use the image's existing boto3/runtime identity, never expose it to generated code.
+            try:
+                run_stage("dataset_mirror",[sys.executable,"-m","baselines.cadfit_mirror",str(out)],
+                          7200)
+            except Exception as exc:
+                (out/"dataset_mirror_failure.json").write_text(json.dumps(
+                    dict(error=str(exc),checkpoint_outputs_preserved=True)))
         retention.finish()
         if xvfb is not None:
             xvfb.terminate()

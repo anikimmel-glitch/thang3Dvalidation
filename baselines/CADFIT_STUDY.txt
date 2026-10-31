@@ -1,0 +1,51 @@
+CADFit retry and optional-filter adaptation, 31 October 2026
+
+Retain the original 45-minute raw-compound attempt. The new STEP export unions
+all generated solids, matching the documented upstream final-mesh union. It
+discards no components and does not fill gaps. Retain original compound,
+union candidate, final mesh, and audit. Require >=0.995 IoU between the union's
+tessellation and the upstream final mesh without independent normalization or
+alpha wrapping. The common evaluator still requires one valid solid.
+
+First run analytic overlapping/disconnected-solid canaries, then the same ten
+training-only development subjects with two hours each. An export or runtime
+discrepancy blocks further execution; poor algorithm scores alone do not.
+The held-out unfiltered baseline uses the original 450 primary test subjects
+and the original 45-minute reconstruction budget. All timeouts/failures stay.
+
+CADFit's core optimizer has no trainable reconstruction weights. Fine-tuning
+here updates the optional released DINOv2+MLP sketch filter's MLP, initialized
+from the published checkpoint. Freeze DINO and feature normalization. Retain
+the pretrained filter as a matched control in addition to unfiltered CADFit.
+
+Up to 64 training source families and all up to 21 validation families supply
+one relatively complex body each, chosen from reference metadata only.
+Run unfiltered candidate generation with two-hour budgets. Record candidate
+IoUs before upstream censoring. For single-loop sketches, any measured candidate
+IoU >=0.01 supplies a positive viability proxy. A negative requires every
+precomputed candidate to be measured and all IoUs <=0.0005. Unknown/failed/
+timed-out/intermediate and ambiguous multi-loop cases are unlabeled.
+These are deliberately limited pseudo labels: candidate overlap viability is
+not original design intent, final-program membership, or a causal usefulness
+label. Curved or small features can be underrepresented. Report admission.
+
+Cache all four-view DINO + 17 geometry features and query/source identities.
+Ten AdamW epochs, learning rate 1e-5, source-balanced losses, seed 20261031.
+Select best learned epoch using source-macro validation proxy AP; also retain
+epoch zero and the deployment choice. Evaluate the prespecified best learned
+endpoint even if epoch zero is the deployment choice, so a negative adaptation
+result remains observable. Test outcomes never choose weights or thresholds.
+Record AP, accuracy, precision, recall and F1 for validation, all checkpoints,
+optimizer/RNG states, predictions, native and normalized reconstruction scores.
+
+Held-out conditions: no filter, published filter, fine-tuned filter, all with
+identical subjects, optimizer settings, seeds and 45-minute budgets. The paired
+adaptation estimate compares the two filters; it does not confound filter
+activation with training. Report source-bootstrap intervals, coverage, validity,
+complexity bins, raw rows and fixed-budget scores with timeout zeros separately
+from conditional-valid metrics. One training seed; previously inspected pilot.
+
+All large outputs remain on Sagey; no new CAD/weights are downloaded locally.
+The published optional filter fails explicitly rather than silently falling
+back to an unfiltered run. Failed scientific outcomes are not automatically
+rerun. Infrastructure failures require diagnosis and preserve prior evidence.
